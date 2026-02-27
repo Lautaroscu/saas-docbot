@@ -50,9 +50,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copiar carpeta public (necesaria para assets estáticos)
-COPY --from=builder /app/public ./public
-
 # Crear directorio .next y ajustar permisos antes de copiar
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
