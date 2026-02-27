@@ -22,8 +22,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Capturar el argumento de Docker Compose
 ARG POSTGRES_URL
-ENV POSTGRES_URL=$SAAS_POSTGRES_URL
-# Convertirlo en variable de entorno para que Next.js lo vea durante el build
+ENV POSTGRES_URL=${SAAS_POSTGRES_URL:-postgres://localhost:5432/dummy_db}
 ENV NODE_ENV=production
 # Deshabilitar telemetría en tiempo de build
 ENV NEXT_TELEMETRY_DISABLED=1 
