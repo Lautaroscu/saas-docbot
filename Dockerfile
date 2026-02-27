@@ -22,7 +22,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Capturar el argumento de Docker Compose
 ARG POSTGRES_URL
+ARG STRIPE_SECRET_KEY
+ARG STRIPE_WEBHOOK_SECRET
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+
+# Seteamos valores dummy para que el build no falle por validaciones de SDKs
+ENV STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_dummy}
+ENV STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_dummy}
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_dummy}
 ENV POSTGRES_URL=${SAAS_POSTGRES_URL:-postgres://localhost:5432/dummy_db}
+
 ENV NODE_ENV=production
 # Deshabilitar telemetría en tiempo de build
 ENV NEXT_TELEMETRY_DISABLED=1 
