@@ -4,7 +4,8 @@ import {
   varchar,
   text,
   timestamp,
-  integer, boolean, jsonb, numeric, date, unique, index, pgEnum
+  integer, boolean, jsonb, numeric, date, unique, index, pgEnum,
+  primaryKey
 } from 'drizzle-orm/pg-core';
 
 import { relations } from 'drizzle-orm';
@@ -91,12 +92,20 @@ export const teamAddresses = pgTable('team_addresses', {
 
 export const assistants = pgTable('assistants', {
   id: serial('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  teamId: integer('team_id').references(() => teams.id).unique(),
+  teamId: integer('team_id').notNull().references(() => teams.id), // Quitamos .unique() para escalabilidad
+  name: varchar('name', { length: 255 }).notNull(), // Ej: "Paola"
+
+  // Identificadores de Meta (Vital para el Gateway)
+  waPhoneNumberId: varchar('wa_phone_number_id', { length: 255 }).notNull().unique(),
+  waVerifyToken: varchar('wa_verify_token', { length: 255 }), // Opcional: para validar el webhook por bot
+
   systemPrompt: text('system_prompt').notNull(),
   temperature: numeric('temperature', { precision: 2, scale: 1 }).default('0.7'),
+  isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  index('idx_wa_phone_id').on(table.waPhoneNumberId) // Índice para que el Gateway responda en ms
+]);
 
 export const apiKeys = pgTable('api_keys', {
   id: serial('id').primaryKey(),
@@ -148,9 +157,45 @@ export const services = pgTable('services', {
   slotMinutes: integer('slot_minutes'),
 });
 
+export const doctors = pgTable('doctors', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id),
+  userId: integer('user_id').references(() => users.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  specialty: varchar('specialty', { length: 100 }),
+  googleCalendarId: varchar('google_calendar_id', { length: 255 }),
+  isActive: boolean('is_active').default(true),
+
+  // --- CAMPOS DE MERCADO PAGO ---
+  // mpAccessToken: El token privado para operar la API (BE)
+  mpAccessToken: text('mp_access_token'),
+  // mpPublicKey: La clave pública para el Checkout Pro si usás el SDK de Front (FE)
+  mpPublicKey: varchar('mp_public_key', { length: 255 }),
+  // mpUserId: ID de usuario de MP, sirve para validar Webhooks
+  mpUserId: varchar('mp_user_id', { length: 100 }),
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+// TABLA INTERMEDIA (Junction Table)
+export const doctorsToServices = pgTable('doctors_to_services', {
+  doctorId: integer('doctor_id')
+    .notNull()
+    .references(() => doctors.id, { onDelete: 'cascade' }),
+  serviceId: integer('service_id')
+    .notNull()
+    .references(() => services.id, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.doctorId, t.serviceId] }), // Clave primaria compuesta
+  index('idx_dts_doctor').on(t.doctorId),
+  index('idx_dts_service').on(t.serviceId)
+]);
+
+// 2. Modificación necesaria en Appointments
+// Ahora el turno no es solo de un "team", es de un "doctor" específico
 export const appointments = pgTable('appointments', {
   id: serial('id').primaryKey(),
   contactId: integer('contact_id').references(() => contacts.id),
+  doctorId: integer('doctor_id').references(() => doctors.id), // <--- CRÍTICO
   locationId: integer('location_id').references(() => teamAddresses.id),
   startTime: timestamp('start_time').notNull(),
   endTime: timestamp('end_time').notNull(),
@@ -159,9 +204,7 @@ export const appointments = pgTable('appointments', {
   googleCalendarEventId: varchar('google_calendar_event_id', { length: 255 }).unique(),
   createdAt: timestamp('created_at').defaultNow(),
   teamId: integer('team_id').references(() => teams.id),
-}, (table) => [
-  index('idx_appointments_team_time').on(table.teamId, table.startTime)
-]);
+});
 
 export const chatMessages = pgTable('chat_messages', {
   id: serial('id').primaryKey(),
@@ -233,22 +276,27 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
     references: [users.id],
   }),
 }));
+// RELACIONES (Drizzle Relations API)
+export const doctorsRelations = relations(doctors, ({ many }) => ({
+  services: many(doctorsToServices),
+}));
 
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type Team = typeof teams.$inferSelect;
-export type NewTeam = typeof teams.$inferInsert;
-export type TeamMember = typeof teamMembers.$inferSelect;
-export type NewTeamMember = typeof teamMembers.$inferInsert;
-export type ActivityLog = typeof activityLogs.$inferSelect;
-export type NewActivityLog = typeof activityLogs.$inferInsert;
-export type Invitation = typeof invitations.$inferSelect;
-export type NewInvitation = typeof invitations.$inferInsert;
-export type TeamDataWithMembers = Team & {
-  teamMembers: (TeamMember & {
-    user: Pick<User, 'id' | 'name' | 'email'>;
-  })[];
-};
+export const servicesRelations = relations(services, ({ many }) => ({
+  doctors: many(doctorsToServices),
+}));
+
+export const doctorsToServicesRelations = relations(doctorsToServices, ({ one }) => ({
+  doctor: one(doctors, {
+    fields: [doctorsToServices.doctorId],
+    references: [doctors.id],
+  }),
+  service: one(services, {
+    fields: [doctorsToServices.serviceId],
+    references: [services.id],
+  }),
+}));
+
+// Types are now exported centrally from @/types
 
 export enum ActivityType {
   SIGN_UP = 'SIGN_UP',

@@ -4,18 +4,20 @@ import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
-  User,
   users,
   teams,
   teamMembers,
   activityLogs,
-  type NewUser,
-  type NewTeam,
-  type NewTeamMember,
-  type NewActivityLog,
   ActivityType,
   invitations
 } from '@/lib/db/schema';
+
+type User = typeof users.$inferSelect;
+type NewUser = typeof users.$inferInsert;
+type NewTeam = typeof teams.$inferInsert;
+type NewTeamMember = typeof teamMembers.$inferInsert;
+type NewActivityLog = typeof activityLogs.$inferInsert;
+
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';

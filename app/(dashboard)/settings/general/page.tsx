@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { updateAccount } from '@/app/(login)/actions';
-import { User } from '@/lib/db/schema';
+import { users } from '@/lib/db/schema';
 import useSWR from 'swr';
+type User = typeof users.$inferSelect;
 import { Suspense } from 'react';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());

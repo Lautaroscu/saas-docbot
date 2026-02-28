@@ -1,7 +1,15 @@
 import { z } from 'zod';
-import { TeamDataWithMembers, User } from '@/lib/db/schema';
+import { users, teams, teamMembers } from '@/lib/db/schema';
 import { getTeamForUser, getUser } from '@/lib/db/queries';
 import { redirect } from 'next/navigation';
+
+type User = typeof users.$inferSelect;
+type Team = typeof teams.$inferSelect;
+type TeamDataWithMembers = Team & {
+  teamMembers: (typeof teamMembers.$inferSelect & {
+    user: Pick<User, 'id' | 'name' | 'email'>;
+  })[];
+};
 
 export type ActionState = {
   error?: string;
