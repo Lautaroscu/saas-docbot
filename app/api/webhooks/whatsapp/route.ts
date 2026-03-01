@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { assistants, contacts, doctors, appointments, teamAddresses } from '@/lib/db/schema';
-import { eq, and, gte } from 'drizzle-orm';
+import { assistants, contacts, doctors, appointments, teamAddresses, chatSessions } from '@/lib/db/schema';
+import { eq, and, gte, desc } from 'drizzle-orm';
 import { Appointment } from '@/types';
 
 export async function GET(request: Request) {
@@ -85,6 +85,22 @@ export async function POST(request: Request) {
             contactInfo = inserted[0];
         }
 
+        // Contexto de Negocio: Validar Estado del Bot (Inbound Filter)
+        if (contactInfo && contactInfo.botStatus !== 'ACTIVE') {
+            const pauseUntilDate = contactInfo.pauseUntil ? new Date(contactInfo.pauseUntil) : null;
+            if (!pauseUntilDate || pauseUntilDate > new Date()) {
+                console.log(`[Inbound Gateway] Bot is paused for contact ${contactInfo.id}. Ignoring message from ${waId}.`);
+                return NextResponse.json({ success: true, message: 'Bot paused, ignoring message.' });
+            } else {
+                // El tiempo de pausa expiró, lo volvemos a poner en ACTIVE
+                await db.update(contacts)
+                    .set({ botStatus: 'ACTIVE', pauseUntil: null })
+                    .where(eq(contacts.id, contactInfo.id));
+                contactInfo.botStatus = 'ACTIVE';
+                contactInfo.pauseUntil = null;
+            }
+        }
+
         // Contexto de Negocio: Doctores activos y sus servicios
         const activeDoctorsList = await db.query.doctors.findMany({
             where: and(
@@ -98,8 +114,19 @@ export async function POST(request: Request) {
             }
         });
 
-        // Validar ventana de 6 horas para "nueva sesión" (simplificado)
-        const isNewSession = true; // Todo: Query a chatMessages para ver el last timestamp.
+        // Buscar si existe una chat_session activa para este contact_id que no haya expirado
+        let activeSession = null;
+        if (contactInfo) {
+            activeSession = await db.query.chatSessions.findFirst({
+                where: and(
+                    eq(chatSessions.contactId, contactInfo.id),
+                    gte(chatSessions.expiresAt, new Date())
+                ),
+                orderBy: (sessions, { desc }) => [desc(sessions.createdAt)]
+            });
+        }
+
+        const isNewSession = !activeSession;
 
         // Turnos futuros del paciente
         let upcomingAppointments: Appointment[] = [];
@@ -134,6 +161,9 @@ export async function POST(request: Request) {
                 waId: waId,
                 contactId: contactInfo?.id || null,
                 name: contactInfo?.name || value?.contacts?.[0]?.profile?.name || 'Unknown',
+                lastName: contactInfo?.lastName || value?.contacts?.[0]?.profile?.last_name || 'Unknown',
+                phone: contactInfo?.phone || waId,
+                email: contactInfo?.email || value?.contacts?.[0]?.profile?.email || '',
                 isNewSession,
             },
             businessContext: {
@@ -150,6 +180,15 @@ export async function POST(request: Request) {
                 })),
                 patientAppointments: upcomingAppointments,
                 teamAddresses: activeAddresses,
+            },
+            sessionContext: {
+                chatSessionId: activeSession?.id || null,
+                status: activeSession?.status || 'IDLE',
+                selectedDoctorId: activeSession?.selectedDoctorId || null,
+                selectedServiceId: activeSession?.selectedServiceId || null,
+                selectedSlot: activeSession?.selectedSlot || null,
+                lastIntent: activeSession?.lastIntent || null,
+                metadata: activeSession?.metadata || {},
             },
             userMessage: message
         };

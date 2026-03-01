@@ -5,7 +5,8 @@ import {
   text,
   timestamp,
   integer, boolean, jsonb, numeric, date, unique, index, pgEnum,
-  primaryKey
+  primaryKey,
+  uuid
 } from 'drizzle-orm/pg-core';
 
 import { relations } from 'drizzle-orm';
@@ -221,8 +222,40 @@ export const chatMessages = pgTable('chat_messages', {
   index('idx_chat_lookup').on(table.contactId, table.sessionId)
 ]);
 
+
+export const chatSessions = pgTable("chat_sessions", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade" }),
+
+  // Selección actual del flujo
+  selectedDoctorId: integer("selected_doctor_id")
+    .references(() => doctors.id, { onDelete: "set null" }),
+  selectedServiceId: integer("selected_service_id")
+    .references(() => services.id, { onDelete: "set null" }),
+
+  // Datos temporales de la reserva (ej: "2026-03-05 10:00")
+  selectedSlot: timestamp("selected_slot", { withTimezone: true }),
+
+  // Estado del embudo: 'IDLE', 'SELECTING_DOCTOR', 'SELECTING_SLOT', 'AWAITING_PAYMENT'
+  status: varchar("status", { length: 50 }).notNull().default("IDLE"),
+
+  // Última intención detectada por n8n (útil para debugging)
+  lastIntent: varchar("last_intent", { length: 100 }),
+
+  // Para guardar datos extra sin modificar la tabla (ej: ID de preferencia de MP)
+  metadata: jsonb("metadata").default({}),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
 export const waitingList = pgTable('waiting_list', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey(),
   sessionId: varchar('session_id', { length: 30 }).notNull(),
   patientName: varchar('patient_name', { length: 100 }),
   patientType: patientTypeEnum('patient_type'),
