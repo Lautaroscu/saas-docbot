@@ -135,7 +135,7 @@ export async function POST(request: Request) {
                 where: and(
                     eq(appointments.contactId, contactInfo.id),
                     gte(appointments.startTime, new Date()),
-                    eq(appointments.status, 'confirmed')
+                    eq(appointments.status, 'scheduled')
                 )
             });
         }

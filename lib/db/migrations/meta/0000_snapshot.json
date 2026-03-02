@@ -1,5 +1,5 @@
 {
-  "id": "7fd08f60-bae2-4e61-8140-f22d6730ea73",
+  "id": "08ba3901-3771-40dc-b861-cc1c1653436c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -258,6 +258,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "location_id": {
           "name": "location_id",
           "type": "integer",
@@ -276,19 +282,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "service_type": {
-          "name": "service_type",
-          "type": "varchar(50)",
+        "service_id": {
+          "name": "service_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "appointment_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'confirmed'"
         },
         "google_calendar_event_id": {
           "name": "google_calendar_event_id",
@@ -308,31 +306,31 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "appointment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'scheduled'"
+        },
+        "payment_status": {
+          "name": "payment_status",
+          "type": "payment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "payment_link": {
+          "name": "payment_link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {
-        "idx_appointments_team_time": {
-          "name": "idx_appointments_team_time",
-          "columns": [
-            {
-              "expression": "team_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "start_time",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "appointments_contact_id_contacts_id_fk": {
           "name": "appointments_contact_id_contacts_id_fk",
@@ -347,12 +345,38 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "appointments_doctor_id_doctors_id_fk": {
+          "name": "appointments_doctor_id_doctors_id_fk",
+          "tableFrom": "appointments",
+          "tableTo": "doctors",
+          "columnsFrom": [
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "appointments_location_id_team_addresses_id_fk": {
           "name": "appointments_location_id_team_addresses_id_fk",
           "tableFrom": "appointments",
           "tableTo": "team_addresses",
           "columnsFrom": [
             "location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "appointments_service_id_services_id_fk": {
+          "name": "appointments_service_id_services_id_fk",
+          "tableFrom": "appointments",
+          "tableTo": "services",
+          "columnsFrom": [
+            "service_id"
           ],
           "columnsTo": [
             "id"
@@ -398,15 +422,27 @@
           "primaryKey": true,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
-        "team_id": {
-          "name": "team_id",
-          "type": "integer",
+        "wa_phone_number_id": {
+          "name": "wa_phone_number_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wa_verify_token": {
+          "name": "wa_verify_token",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
@@ -423,6 +459,13 @@
           "notNull": false,
           "default": "'0.7'"
         },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -431,7 +474,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_wa_phone_id": {
+          "name": "idx_wa_phone_id",
+          "columns": [
+            {
+              "expression": "wa_phone_number_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "assistants_team_id_teams_id_fk": {
           "name": "assistants_team_id_teams_id_fk",
@@ -449,11 +508,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "assistants_team_id_unique": {
-          "name": "assistants_team_id_unique",
+        "assistants_wa_phone_number_id_unique": {
+          "name": "assistants_wa_phone_number_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "team_id"
+            "wa_phone_number_id"
           ]
         }
       },
@@ -609,6 +668,179 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.chat_sessions": {
+      "name": "chat_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "selected_doctor_id": {
+          "name": "selected_doctor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "selected_service_id": {
+          "name": "selected_service_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "selected_slot": {
+          "name": "selected_slot",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'IDLE'"
+        },
+        "last_intent": {
+          "name": "last_intent",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "idx_session_expiration": {
+          "name": "idx_session_expiration",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_session_contact": {
+          "name": "idx_session_contact",
+          "columns": [
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "chat_sessions_team_id_teams_id_fk": {
+          "name": "chat_sessions_team_id_teams_id_fk",
+          "tableFrom": "chat_sessions",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "chat_sessions_contact_id_contacts_id_fk": {
+          "name": "chat_sessions_contact_id_contacts_id_fk",
+          "tableFrom": "chat_sessions",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "chat_sessions_selected_doctor_id_doctors_id_fk": {
+          "name": "chat_sessions_selected_doctor_id_doctors_id_fk",
+          "tableFrom": "chat_sessions",
+          "tableTo": "doctors",
+          "columnsFrom": [
+            "selected_doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "chat_sessions_selected_service_id_services_id_fk": {
+          "name": "chat_sessions_selected_service_id_services_id_fk",
+          "tableFrom": "chat_sessions",
+          "tableTo": "services",
+          "columnsFrom": [
+            "selected_service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.contacts": {
       "name": "contacts",
       "schema": "",
@@ -721,6 +953,220 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.doctors": {
+      "name": "doctors",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "specialty": {
+          "name": "specialty",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "google_calendar_id": {
+          "name": "google_calendar_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "mp_access_token": {
+          "name": "mp_access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mp_public_key": {
+          "name": "mp_public_key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mp_user_id": {
+          "name": "mp_user_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "billing_strategy": {
+          "name": "billing_strategy",
+          "type": "billing_strategy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'post_consultation'"
+        },
+        "deposit_percentage": {
+          "name": "deposit_percentage",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "doctors_team_id_teams_id_fk": {
+          "name": "doctors_team_id_teams_id_fk",
+          "tableFrom": "doctors",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "doctors_user_id_users_id_fk": {
+          "name": "doctors_user_id_users_id_fk",
+          "tableFrom": "doctors",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.doctors_to_services": {
+      "name": "doctors_to_services",
+      "schema": "",
+      "columns": {
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "idx_dts_doctor": {
+          "name": "idx_dts_doctor",
+          "columns": [
+            {
+              "expression": "doctor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_dts_service": {
+          "name": "idx_dts_service",
+          "columns": [
+            {
+              "expression": "service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "doctors_to_services_doctor_id_doctors_id_fk": {
+          "name": "doctors_to_services_doctor_id_doctors_id_fk",
+          "tableFrom": "doctors_to_services",
+          "tableTo": "doctors",
+          "columnsFrom": [
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "doctors_to_services_service_id_services_id_fk": {
+          "name": "doctors_to_services_service_id_services_id_fk",
+          "tableFrom": "doctors_to_services",
+          "tableTo": "services",
+          "columnsFrom": [
+            "service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "doctors_to_services_doctor_id_service_id_pk": {
+          "name": "doctors_to_services_doctor_id_service_id_pk",
+          "columns": [
+            "doctor_id",
+            "service_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.invitations": {
       "name": "invitations",
       "schema": "",
@@ -801,6 +1247,232 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payments": {
+      "name": "payments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "appointment_id": {
+          "name": "appointment_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'ARS'"
+        },
+        "mp_payment_id": {
+          "name": "mp_payment_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mp_status": {
+          "name": "mp_status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mp_payment_type": {
+          "name": "mp_payment_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'full'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "idx_payments_mp_id": {
+          "name": "idx_payments_mp_id",
+          "columns": [
+            {
+              "expression": "mp_payment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_payments_appointment": {
+          "name": "idx_payments_appointment",
+          "columns": [
+            {
+              "expression": "appointment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payments_team_id_teams_id_fk": {
+          "name": "payments_team_id_teams_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payments_appointment_id_appointments_id_fk": {
+          "name": "payments_appointment_id_appointments_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "appointments",
+          "columnsFrom": [
+            "appointment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payments_contact_id_contacts_id_fk": {
+          "name": "payments_contact_id_contacts_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payments_mp_payment_id_unique": {
+          "name": "payments_mp_payment_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "mp_payment_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plans": {
+      "name": "plans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mp_plan_id": {
+          "name": "mp_plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price": {
+          "name": "price",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "plans_slug_unique": {
+          "name": "plans_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1066,21 +1738,21 @@
           "notNull": true,
           "default": "now()"
         },
-        "stripe_customer_id": {
-          "name": "stripe_customer_id",
+        "mp_plan_id": {
+          "name": "mp_plan_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "stripe_subscription_id": {
-          "name": "stripe_subscription_id",
+        "mp_preapproval_id": {
+          "name": "mp_preapproval_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "stripe_product_id": {
-          "name": "stripe_product_id",
-          "type": "text",
+        "billing_email": {
+          "name": "billing_email",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
@@ -1095,24 +1767,31 @@
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false
+        },
+        "webhook_token": {
+          "name": "webhook_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "teams_stripe_customer_id_unique": {
-          "name": "teams_stripe_customer_id_unique",
+        "teams_mp_preapproval_id_unique": {
+          "name": "teams_mp_preapproval_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "stripe_customer_id"
+            "mp_preapproval_id"
           ]
         },
-        "teams_stripe_subscription_id_unique": {
-          "name": "teams_stripe_subscription_id_unique",
+        "teams_webhook_token_unique": {
+          "name": "teams_webhook_token_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "stripe_subscription_id"
+            "webhook_token"
           ]
         }
       },
@@ -1302,10 +1981,20 @@
       "name": "appointment_status",
       "schema": "public",
       "values": [
-        "confirmed",
+        "scheduled",
         "reconfirmed",
         "cancelled",
-        "attended"
+        "attended",
+        "no_show"
+      ]
+    },
+    "public.billing_strategy": {
+      "name": "billing_strategy",
+      "schema": "public",
+      "values": [
+        "upfront_full",
+        "upfront_deposit",
+        "post_consultation"
       ]
     },
     "public.patient_type": {
@@ -1314,6 +2003,17 @@
       "values": [
         "primera_vez",
         "control"
+      ]
+    },
+    "public.payment_status": {
+      "name": "payment_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "partial",
+        "completed",
+        "failed",
+        "refunded"
       ]
     },
     "public.waiting_list_status": {

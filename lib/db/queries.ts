@@ -36,11 +36,11 @@ export async function getUser() {
   return user[0];
 }
 
-export async function getTeamByStripeCustomerId(customerId: string) {
+export async function getTeamByMpPreapprovalId(preapprovalId: string) {
   const result = await db
     .select()
     .from(teams)
-    .where(eq(teams.stripeCustomerId, customerId))
+    .where(eq(teams.mpPreapprovalId, preapprovalId))
     .limit(1);
 
   return result.length > 0 ? result[0] : null;
@@ -49,8 +49,8 @@ export async function getTeamByStripeCustomerId(customerId: string) {
 export async function updateTeamSubscription(
   teamId: number,
   subscriptionData: {
-    stripeSubscriptionId: string | null;
-    stripeProductId: string | null;
+    mpPreapprovalId: string | null;
+    mpPlanId: string | null;
     planName: string | null;
     subscriptionStatus: string;
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { appointments, contacts } from '@/lib/db/schema';
+import { appointments, contacts, services } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 export async function GET(request: Request) {
@@ -16,10 +16,11 @@ export async function GET(request: Request) {
             date: appointments.startTime,
             status: appointments.status,
             patientName: contacts.name,
-            serviceType: appointments.serviceType
+            serviceType: services.name
         })
             .from(appointments)
             .leftJoin(contacts, eq(appointments.contactId, contacts.id))
+            .leftJoin(services, eq(appointments.serviceId, services.id))
             .where(eq(appointments.teamId, teamId))
             .orderBy(desc(appointments.startTime))
             .limit(30);

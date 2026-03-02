@@ -45,8 +45,8 @@ export async function POST(request: Request) {
             locationId: body.locationId,
             startTime: new Date(body.startTime),
             endTime: new Date(body.endTime),
-            serviceType: body.serviceType || 'consulta',
-            status: body.status || 'confirmed',
+            serviceId: body.serviceId,
+            status: body.status || 'scheduled',
         }).returning();
 
         return NextResponse.json({ success: true, data: inserted[0] });

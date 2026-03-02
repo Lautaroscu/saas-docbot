@@ -21,7 +21,6 @@ type NewActivityLog = typeof activityLogs.$inferInsert;
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { createCheckoutSession } from '@/lib/payments/stripe';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import {
   validatedAction,
@@ -95,8 +94,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout') {
-    const priceId = formData.get('priceId') as string;
-    return createCheckoutSession({ team: foundTeam, priceId });
+    redirect('/pricing');
   }
 
   redirect('/dashboard');
@@ -216,8 +214,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout') {
-    const priceId = formData.get('priceId') as string;
-    return createCheckoutSession({ team: createdTeam, priceId });
+    redirect('/pricing');
   }
 
   redirect('/dashboard');

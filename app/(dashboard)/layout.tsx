@@ -33,6 +33,39 @@ import { Separator } from '@/components/ui/separator';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+function PlanBadge({ tier }: { tier?: string | null }) {
+  if (!tier) return null;
+  const normalizedTier = tier.toLowerCase();
+
+  const styles: Record<string, string> = {
+    free: "bg-slate-100 text-slate-600 border-slate-200",
+    essential: "bg-blue-50 text-blue-700 border-blue-200",
+    professional: "bg-purple-50 text-purple-700 border-purple-200",
+    business: "bg-amber-50 text-amber-700 border-amber-200",
+  };
+
+  const currentStyle = styles[normalizedTier] || "bg-gray-100 text-gray-700 border-gray-200";
+
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border uppercase ${currentStyle}`}>
+      {tier}
+    </span>
+  );
+}
+
+function HeaderControls() {
+  const { data: team } = useSWR<Team>('/api/team', fetcher);
+
+  return (
+    <div className="flex items-center gap-3">
+      {team?.planName && <PlanBadge tier={team.planName} />}
+      <Suspense fallback={<div className="size-8 rounded-full bg-muted animate-pulse" />}>
+        <UserMenu />
+      </Suspense>
+    </div>
+  );
+}
+
 const navItems = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Agenda", url: "/agenda", icon: Calendar },
@@ -156,9 +189,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Separator orientation="vertical" className="h-4" />
             <h1 className="text-sm font-semibold text-muted-foreground">{currentNavItem.title}</h1>
           </div>
-          <Suspense fallback={<div className="size-8 rounded-full bg-muted animate-pulse" />}>
-            <UserMenu />
-          </Suspense>
+          <HeaderControls />
         </header>
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-6xl mx-auto h-full">

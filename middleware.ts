@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { signToken, verifyToken } from '@/lib/auth/session';
 import { db } from '@/lib/db/drizzle';
-import { apiKeys } from '@/lib/db/schema';
+import { apiKeys, teamMembers, teams } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Cache Global
 const apiKeyCache = new Map<string, { teamId: number; expires: number }>();
+const subscriptionCache = new Map<number, { status: string; expires: number }>();
 const CACHE_TTL = 1000 * 60 * 10; // 10 minutos
 
 export async function middleware(request: NextRequest) {
@@ -67,6 +68,36 @@ export async function middleware(request: NextRequest) {
   if (sessionCookie && request.method === 'GET') {
     try {
       const parsed = await verifyToken(sessionCookie.value);
+
+      // Check Subscription specific rules exclusively for protected routes
+      if (isProtectedRoute) {
+        let subStatus: string | null = null;
+        const cached = subscriptionCache.get(parsed.user.id);
+
+        if (cached && cached.expires > Date.now()) {
+          subStatus = cached.status;
+        } else {
+          const memberResult = await db.select({
+            subscriptionStatus: teams.subscriptionStatus
+          }).from(teamMembers)
+            .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+            .where(eq(teamMembers.userId, parsed.user.id))
+            .limit(1);
+
+          if (memberResult.length > 0) {
+            subStatus = memberResult[0].subscriptionStatus || 'inactive';
+            subscriptionCache.set(parsed.user.id, {
+              status: subStatus,
+              expires: Date.now() + CACHE_TTL
+            });
+          }
+        }
+
+        if (!subStatus || (subStatus !== 'active' && subStatus !== 'authorized')) {
+          return NextResponse.redirect(new URL('/pricing', request.url));
+        }
+      }
+
       const expiresInOneDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       res.cookies.set({

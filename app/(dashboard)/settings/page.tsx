@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { customerPortalAction } from '@/lib/payments/actions';
 import { useActionState, Suspense } from 'react';
 import { removeTeamMember, inviteTeamMember } from '@/app/(login)/actions';
 import useSWR from 'swr';
@@ -63,11 +62,6 @@ export default function SettingsPage() {
                       : 'No active subscription'}
                 </p>
               </div>
-              <form action={customerPortalAction}>
-                <Button type="submit" variant="outline">
-                  Manage Subscription
-                </Button>
-              </form>
             </div>
           </div>
         </CardContent>
