@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Logo } from '@/components/ui/logo';
 import { signOut } from '@/app/(login)/actions';
 import { useRouter, usePathname } from 'next/navigation';
 import { User, Team } from '@/types';
@@ -58,7 +59,7 @@ function HeaderControls() {
 
   return (
     <div className="flex items-center gap-3">
-      {team?.planName && <PlanBadge tier={team.planName} />}
+      {team?.planId && <PlanBadge tier={team.plan?.name} />}
       <Suspense fallback={<div className="size-8 rounded-full bg-muted animate-pulse" />}>
         <UserMenu />
       </Suspense>
@@ -82,9 +83,12 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b h-[60px] flex items-center px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-          <CircleIcon className="h-6 w-6 text-orange-500" />
-          <span className="truncate">{team?.name || 'Clínica SaaS'}</span>
+        <Link
+          href="/"
+          className="flex items-center  gap-2 font-bold text-xl text-primary w-fit transition-opacity hover:opacity-90 mt-2 mr-2"
+        >
+          <Logo className="size-8 flex-shrink-0" />
+          <span className="leading-none">Medly AI</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>

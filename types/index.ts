@@ -18,6 +18,7 @@ import {
     appointmentStatusEnum,
     patientTypeEnum,
     waitingListStatusEnum,
+    plans,
 } from '@/lib/db/schema';
 
 // -----------------------------------------------------------------------------
@@ -31,7 +32,9 @@ export type WaitingListStatus = typeof waitingListStatusEnum.enumValues[number];
 // Base Entities (Select)
 // -----------------------------------------------------------------------------
 export interface User extends Omit<typeof users.$inferSelect, never> { }
-export interface Team extends Omit<typeof teams.$inferSelect, never> { }
+export interface Team extends Omit<typeof teams.$inferSelect, never> {
+    plan?: Plan;
+}
 export interface TeamMember extends Omit<typeof teamMembers.$inferSelect, never> { }
 export interface ActivityLog extends Omit<typeof activityLogs.$inferSelect, never> { }
 export interface Invitation extends Omit<typeof invitations.$inferSelect, never> { }
@@ -47,7 +50,7 @@ export interface DoctorToService extends Omit<typeof doctorsToServices.$inferSel
 export interface Appointment extends Omit<typeof appointments.$inferSelect, never> { }
 export interface ChatMessage extends Omit<typeof chatMessages.$inferSelect, never> { }
 export interface WaitingList extends Omit<typeof waitingList.$inferSelect, never> { }
-
+export interface Plan extends Omit<typeof plans.$inferSelect, never> { }
 // -----------------------------------------------------------------------------
 // Insert Interfaces (For object creation)
 // -----------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import { useActionState, Suspense } from 'react';
 import { removeTeamMember, inviteTeamMember } from '@/app/(login)/actions';
 import useSWR from 'swr';
 import { users, teams, teamMembers } from '@/lib/db/schema';
+import { Plan } from '@/types';
 
 type User = typeof users.$inferSelect;
 type Team = typeof teams.$inferSelect;
@@ -19,6 +20,7 @@ type TeamDataWithMembers = Team & {
   teamMembers: (typeof teamMembers.$inferSelect & {
     user: Pick<User, 'id' | 'name' | 'email'>;
   })[];
+  plan: Pick<Plan, 'id' | 'name'>;
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -38,13 +40,13 @@ export default function SettingsPage() {
   return (
     <section className="flex-1 p-4 lg:p-8">
       <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
-        Team Settings
+        Configuración del Equipo
       </h1>
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Team Subscription</CardTitle>
+          <CardTitle>Suscripción del Equipo</CardTitle>
           <CardDescription>
-            Manage your team's subscription and billing details.
+            Administra la suscripción y los detalles de facturación de tu equipo.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -52,14 +54,14 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
               <div className="mb-4 sm:mb-0">
                 <p className="font-medium">
-                  Current Plan: {teamData.planName || 'Free'}
+                  Plan Actual: {teamData.plan?.name || 'Gratis'}
                 </p>
                 <p className="text-sm text-gray-500">
                   {teamData.subscriptionStatus === 'active'
-                    ? 'Billed monthly'
+                    ? 'Facturación mensual'
                     : teamData.subscriptionStatus === 'trialing'
-                      ? 'Trial period'
-                      : 'No active subscription'}
+                      ? 'Período de prueba'
+                      : 'Sin suscripción activa'}
                 </p>
               </div>
             </div>
@@ -68,9 +70,9 @@ export default function SettingsPage() {
       </Card>
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Team Members</CardTitle>
+          <CardTitle>Miembros del Equipo</CardTitle>
           <CardDescription>
-            Manage your team members and their roles.
+            Administra los miembros de tu equipo y sus roles.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,7 +96,7 @@ export default function SettingsPage() {
                     await removeTeamMember({ error: '', success: '' }, formData);
                   }}>
                     <Button variant="ghost" size="sm" type="submit">
-                      Remove
+                      Eliminar
                     </Button>
                   </form>
                 )}

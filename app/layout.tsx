@@ -6,8 +6,8 @@ import { SWRConfig } from 'swr';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export const metadata: Metadata = {
-  title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and Stripe.'
+  title: 'Serra AI - Medly',
+  description: 'Gestión moderna e inteligente para centros médicos y profesionales de la salud.'
 };
 
 export const viewport: Viewport = {

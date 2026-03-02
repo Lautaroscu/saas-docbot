@@ -110,6 +110,7 @@ export async function getTeamForUser() {
     with: {
       team: {
         with: {
+          plan: true,
           teamMembers: {
             with: {
               user: {

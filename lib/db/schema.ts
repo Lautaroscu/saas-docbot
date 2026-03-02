@@ -26,10 +26,9 @@ export const teams = pgTable('teams', {
   name: varchar('name', { length: 100 }).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  mpPlanId: text('mp_plan_id'),
+  planId: integer('plan_id').references(() => plans.id),
   mpPreapprovalId: text('mp_preapproval_id').unique(),
   billingEmail: varchar('billing_email', { length: 255 }),
-  planName: varchar('plan_name', { length: 50 }),
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
   webhookToken: uuid('webhook_token').defaultRandom().unique(),
 });
@@ -295,11 +294,19 @@ export const waitingList = pgTable('waiting_list', {
   appointmentId: integer('appointment_id').references(() => appointments.id), // CORRECCIÓN APLICADA: Agregada Foreign Key explícita
   notifiedAt: timestamp('notified_at'),
 });
-export const teamsRelations = relations(teams, ({ many }) => ({
+export const teamsRelations = relations(teams, ({ many, one }) => ({
   teamMembers: many(teamMembers),
   activityLogs: many(activityLogs),
   invitations: many(invitations),
+  plan: one(plans, {
+    fields: [teams.planId],
+    references: [plans.id],
+  }),
 }));
+export const plansRelations = relations(plans, ({ many }) => ({
+  teams: many(teams),
+}));
+
 
 export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),

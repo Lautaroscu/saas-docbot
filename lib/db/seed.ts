@@ -73,7 +73,7 @@ async function seed() {
   const [team] = await db.insert(teams).values({
     name: "Clínica Demo",
     billingEmail: "billing@demo.com",
-    planName: "pro",
+    planId: 2, // Assuming Especialista is ID 2
     subscriptionStatus: "active"
   }).returning();
 
