@@ -85,7 +85,7 @@ function AppSidebar() {
       <SidebarHeader className="border-b h-[60px] flex items-center px-4">
         <Link
           href="/"
-          className="flex items-center  gap-2 font-bold text-xl text-primary w-fit transition-opacity hover:opacity-90 mt-2 mr-2"
+          className="flex items-center  gap-2 font-bold text-xl text-primary w-fit transition-opacity hover:opacity-90 mt-2 mr-4"
         >
           <Logo className="size-8 flex-shrink-0" />
           <span className="leading-none">Medly AI</span>
