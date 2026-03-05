@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
-import { assistants, contacts, doctors, appointments, teamAddresses, chatSessions } from '@/lib/db/schema';
-import { eq, and, gte, desc } from 'drizzle-orm';
-import { Appointment } from '@/types';
+import { assistants, contacts, teams } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import redis from '@/lib/redis';
+import { inboundQueue } from '@/lib/queues/inboundQueue';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -34,19 +35,9 @@ export async function POST(request: Request) {
         const phoneNumberId = metadata?.phone_number_id;
 
         if (!phoneNumberId) {
-            return NextResponse.json({ success: false, error: 'No phone_number_id in payload' }, { status: 400 });
+            // Omitimos logs pesados para pings vacíos
+            return NextResponse.json({ success: true });
         }
-
-        // Identificación: Resuelve team_id mediante wa_phone_number_id
-        const assistant = await db.query.assistants.findFirst({
-            where: eq(assistants.waPhoneNumberId, phoneNumberId),
-        });
-
-        if (!assistant) {
-            return NextResponse.json({ success: false, error: 'Assistant not found for this phone number' }, { status: 404 });
-        }
-
-        const teamId = assistant.teamId;
 
         const messages = value?.messages;
         if (!messages || messages.length === 0) {
@@ -55,13 +46,34 @@ export async function POST(request: Request) {
 
         const message = messages[0];
         const waId = message.from;
+        const metaMessageId = message.id; // Meta unique ID
 
-        // Contact Info: Buscar contacto existente
-        let contactInfo: any = await db.query.contacts.findFirst({
-            where: and(
-                eq(contacts.teamId, teamId),
-                eq(contacts.waId, waId)
-            )
+        // 1. Idempotencia y Filtrado Rápido (Meta re-intenta si no hay 200 OK rapido)
+        const idempotencyKey = `webhook:msg:${metaMessageId}`;
+        const isNewMessage = await redis.setnx(idempotencyKey, '1');
+
+        if (!isNewMessage) {
+            console.log(`[Webhook] Duplicate Meta ID ignored: ${metaMessageId}`);
+            return NextResponse.json({ success: true, message: 'Already processed' });
+        }
+        await redis.expire(idempotencyKey, 86400); // 24hs TTL
+
+        // 2. Resolver Assistant y Contacto Base
+        const assistant = await db.query.assistants.findFirst({
+            where: eq(assistants.waPhoneNumberId, phoneNumberId),
+        });
+
+        if (!assistant) {
+            return NextResponse.json({ success: false, error: 'Assistant not found' }, { status: 404 });
+        }
+
+        const teamId = assistant.teamId;
+
+        let contactId: number | undefined;
+
+        // Ensure contact exists or insert minimal version
+        const contactInfo = await db.query.contacts.findFirst({
+            where: and(eq(contacts.teamId, teamId), eq(contacts.waId, waId))
         });
 
         if (!contactInfo) {
@@ -76,138 +88,37 @@ export async function POST(request: Request) {
                 teamId,
                 waId,
                 phone,
-            }).returning({
-                id: contacts.id,
-                waId: contacts.waId,
-                phone: contacts.phone
-            });
+            }).returning({ id: contacts.id });
 
-            contactInfo = inserted[0];
-        }
-
-        // Contexto de Negocio: Validar Estado del Bot (Inbound Filter)
-        if (contactInfo && contactInfo.botStatus !== 'ACTIVE') {
-            const pauseUntilDate = contactInfo.pauseUntil ? new Date(contactInfo.pauseUntil) : null;
-            if (!pauseUntilDate || pauseUntilDate > new Date()) {
-                console.log(`[Inbound Gateway] Bot is paused for contact ${contactInfo.id}. Ignoring message from ${waId}.`);
-                return NextResponse.json({ success: true, message: 'Bot paused, ignoring message.' });
-            } else {
-                // El tiempo de pausa expiró, lo volvemos a poner en ACTIVE
-                await db.update(contacts)
-                    .set({ botStatus: 'ACTIVE', pauseUntil: null })
-                    .where(eq(contacts.id, contactInfo.id));
-                contactInfo.botStatus = 'ACTIVE';
-                contactInfo.pauseUntil = null;
-            }
-        }
-
-        // Contexto de Negocio: Doctores activos y sus servicios
-        const activeDoctorsList = await db.query.doctors.findMany({
-            where: and(
-                eq(doctors.teamId, teamId),
-                eq(doctors.isActive, true)
-            ),
-            with: {
-                services: {
-                    with: { service: true }
-                }
-            }
-        });
-
-        // Buscar si existe una chat_session activa para este contact_id que no haya expirado
-        let activeSession = null;
-        if (contactInfo) {
-            activeSession = await db.query.chatSessions.findFirst({
-                where: and(
-                    eq(chatSessions.contactId, contactInfo.id),
-                    gte(chatSessions.expiresAt, new Date())
-                ),
-                orderBy: (sessions, { desc }) => [desc(sessions.createdAt)]
-            });
-        }
-
-        const isNewSession = !activeSession;
-
-        // Turnos futuros del paciente
-        let upcomingAppointments: Appointment[] = [];
-        if (contactInfo) {
-            upcomingAppointments = await db.query.appointments.findMany({
-                where: and(
-                    eq(appointments.contactId, contactInfo.id),
-                    gte(appointments.startTime, new Date()),
-                    eq(appointments.status, 'scheduled')
-                )
-            });
-        }
-
-        // Direcciones de la clínica
-        const activeAddresses = await db.query.teamAddresses.findMany({
-            where: and(
-                eq(teamAddresses.teamId, teamId),
-                eq(teamAddresses.isActive, true)
-            )
-        });
-
-        // Estructura del Fat Payload
-        const fatPayload = {
-            assistantConfig: {
-                assistantId: assistant.id,
-                teamId: teamId,
-                prompt: assistant.systemPrompt,
-                name: assistant.name,
-                temperature: assistant.temperature
-            },
-            contactInfo: {
-                waId: waId,
-                contactId: contactInfo?.id || null,
-                name: contactInfo?.name || value?.contacts?.[0]?.profile?.name || 'Unknown',
-                lastName: contactInfo?.lastName || value?.contacts?.[0]?.profile?.last_name || 'Unknown',
-                phone: contactInfo?.phone || waId,
-                email: contactInfo?.email || value?.contacts?.[0]?.profile?.email || '',
-                isNewSession,
-            },
-            businessContext: {
-                activeDoctors: activeDoctorsList.map(doc => ({
-                    id: doc.id,
-                    name: doc.name,
-                    specialty: doc.specialty,
-                    services: doc.services?.map(ds => ({
-                        id: ds.service.id,
-                        name: ds.service.name,
-                        price: ds.service.price,
-                        durationMinutes: ds.service.durationMinutes
-                    })) || []
-                })),
-                patientAppointments: upcomingAppointments,
-                teamAddresses: activeAddresses,
-            },
-            sessionContext: {
-                chatSessionId: activeSession?.id || null,
-                status: activeSession?.status || 'IDLE',
-                selectedDoctorId: activeSession?.selectedDoctorId || null,
-                selectedServiceId: activeSession?.selectedServiceId || null,
-                selectedSlot: activeSession?.selectedSlot || null,
-                lastIntent: activeSession?.lastIntent || null,
-                metadata: activeSession?.metadata || {},
-            },
-            userMessage: message
-        };
-
-        // Forwarding to n8n webhook URL
-        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
-
-        if (n8nWebhookUrl) {
-            // Fire and forget behavior to evitar timeout de integraciones externas.
-            fetch(n8nWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(fatPayload)
-            }).catch(e => console.error('Error forwarding to n8n:', e));
+            contactId = inserted[0]?.id;
         } else {
-            console.warn('N8N_WEBHOOK_URL no configurada. (Fat Payload no enviado)');
+            contactId = contactInfo.id;
         }
 
-        return NextResponse.json({ success: true, forwarded: !!n8nWebhookUrl });
+        if (!contactId) return NextResponse.json({ success: false, error: 'Contact ID missing' });
+        if (!contactId) return NextResponse.json({ success: false, error: 'Contact ID missing' });
+
+        // 3. Debouncing (Acumulador en Redis)
+        const bufferKey = `buffer:msg:${contactId}`;
+
+        // Empujamos el payload entero del mensaje a la cola (texto, botones, audios) para que Worker lo parsee
+        await redis.rpush(bufferKey, JSON.stringify(message));
+
+        // 4. Calendarizar Job en BullMQ (Delay de 5 segundos)
+        // Usamos como Job ID el contactId para que reemplace el timer si entran juntos
+        // BullMQ throws error if jobId contains ':' so we use '_'
+        await inboundQueue.add(
+            'process-inbound',
+            { contactId, phoneNumberId, waId, teamId },
+            {
+                jobId: `debounce_${contactId}`,
+                delay: 5000
+            }
+        );
+
+        console.log(`[Webhook] Message from ${waId} buffered. Will process in 5s.`);
+
+        return NextResponse.json({ success: true, buffered: true });
     } catch (error: any) {
         console.error('Webhook error:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     ppr: true,
     clientSegmentCache: true,
-    
-  }
+  },
+  serverExternalPackages: ['bullmq', 'ioredis'],
 };
 
 export default nextConfig;
