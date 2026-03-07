@@ -11,6 +11,35 @@ import {
 
 import { relations } from 'drizzle-orm';
 
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'ADMIN', 'DOCTOR']);
+export const patientTypeEnum = pgEnum('patient_type', ['primera_vez', 'control']);
+export const waitingListStatusEnum = pgEnum('waiting_list_status', ['waiting', 'notified', 'booked', 'expired']);
+// 1. Estados del Turno (Logística)
+export const appointmentStatusEnum = pgEnum('appointment_status', [
+  'scheduled',   // Turno agendado pero no llegó el día
+  'reconfirmed', // El bot le preguntó y el paciente confirmó asistencia
+  'cancelled',   // Cancelado por alguna de las partes
+  'attended',    // El paciente efectivamente fue a la consulta
+  'no_show'      // El paciente faltó (Crítico para métricas de clínicas)
+]);
+
+// 2. Estados del Pago (Financiero)
+export const paymentStatusEnum = pgEnum('payment_status', [
+  'pending',     // Todavía no pagó nada
+  'partial',     // Pagó una seña (deposit)
+  'completed',   // Pagó el total
+  'failed',      // El intento de pago falló
+  'refunded'     // Se le devolvió el dinero
+]);
+export const billingStrategyEnum = pgEnum('billing_strategy', [
+  'upfront_full',      // Pago 100% para confirmar
+  'upfront_deposit',   // Seña (X%) para confirmar
+  'post_consultation'  // Paga en el consultorio (o después)
+]);
+
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }),
@@ -33,6 +62,16 @@ export const teams = pgTable('teams', {
   webhookToken: uuid('webhook_token').defaultRandom().unique(),
 });
 
+export const departments = pgTable('departments', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id')
+    .notNull()
+    .references(() => teams.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const teamMembers = pgTable('team_members', {
   id: serial('id').primaryKey(),
   userId: integer('user_id')
@@ -41,15 +80,25 @@ export const teamMembers = pgTable('team_members', {
   teamId: integer('team_id')
     .notNull()
     .references(() => teams.id),
-  role: varchar('role', { length: 50 }).notNull(),
+  role: userRoleEnum('role').notNull().default('ADMIN'),
   joinedAt: timestamp('joined_at').notNull().defaultNow(),
 });
+
+export const memberDepartments = pgTable('member_departments', {
+  id: serial('id').primaryKey(),
+  memberId: integer('member_id').notNull().references(() => teamMembers.id, { onDelete: 'cascade' }),
+  departmentId: integer('department_id').notNull().references(() => departments.id, { onDelete: 'cascade' }),
+}, (table) => [
+  unique('idx_unique_member_department').on(table.memberId, table.departmentId)
+]);
+
 export const plans = pgTable('plans', {
   id: serial('id').primaryKey(),
   slug: varchar('slug', { length: 50 }).unique().notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   mpPlanId: text('mp_plan_id').notNull(),
   price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+  maxDepartments: integer('max_departments').notNull().default(1),
   isActive: boolean('is_active').default(true),
 });
 export const activityLogs = pgTable('activity_logs', {
@@ -78,49 +127,25 @@ export const invitations = pgTable('invitations', {
 });
 
 // -----------------------------------------------------------------------------
-// ENUMS
-// -----------------------------------------------------------------------------
-export const patientTypeEnum = pgEnum('patient_type', ['primera_vez', 'control']);
-export const waitingListStatusEnum = pgEnum('waiting_list_status', ['waiting', 'notified', 'booked', 'expired']);
-// 1. Estados del Turno (Logística)
-export const appointmentStatusEnum = pgEnum('appointment_status', [
-  'scheduled',   // Turno agendado pero no llegó el día
-  'reconfirmed', // El bot le preguntó y el paciente confirmó asistencia
-  'cancelled',   // Cancelado por alguna de las partes
-  'attended',    // El paciente efectivamente fue a la consulta
-  'no_show'      // El paciente faltó (Crítico para métricas de clínicas)
-]);
-
-// 2. Estados del Pago (Financiero)
-export const paymentStatusEnum = pgEnum('payment_status', [
-  'pending',     // Todavía no pagó nada
-  'partial',     // Pagó una seña (deposit)
-  'completed',   // Pagó el total
-  'failed',      // El intento de pago falló
-  'refunded'     // Se le devolvió el dinero
-]);
-export const billingStrategyEnum = pgEnum('billing_strategy', [
-  'upfront_full',      // Pago 100% para confirmar
-  'upfront_deposit',   // Seña (X%) para confirmar
-  'post_consultation'  // Paga en el consultorio (o después)
-]);
-
-// -----------------------------------------------------------------------------
 // TABLAS DE NEGOCIO (Consultorio y Bot)
 // -----------------------------------------------------------------------------
 export const teamAddresses = pgTable('team_addresses', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').references(() => teams.id),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }),
   address: varchar('address', { length: 255 }).notNull(),
   mapLink: text('map_link'),
   businessHours: jsonb('business_hours'),
   isActive: boolean('is_active').default(true),
-});
+}, (table) => [
+  index('idx_ta_team_dept').on(table.teamId, table.departmentId)
+]);
 
 export const assistants = pgTable('assistants', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(), // Ej: "Paola"
   waPhoneNumberId: varchar('wa_phone_number_id', { length: 255 }).notNull().unique(),
   waVerifyToken: varchar('wa_verify_token', { length: 255 }),
@@ -130,19 +155,22 @@ export const assistants = pgTable('assistants', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
-  index('idx_wa_phone_id').on(table.waPhoneNumberId)
+  index('idx_wa_phone_id').on(table.waPhoneNumberId),
+  index('idx_assistants_team_dept').on(table.teamId, table.departmentId)
 ]);
 
 export const apiKeys = pgTable('api_keys', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'cascade' }),
   apiKey: varchar('api_key', { length: 100 }).notNull().unique(),
   name: varchar('name', { length: 50 }),
   isActive: boolean('is_active').default(true),
   lastUsedAt: timestamp('last_used_at'),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
-  index('idx_api_key_lookup').on(table.apiKey)
+  index('idx_api_key_lookup').on(table.apiKey),
+  index('idx_apikeys_team_dept').on(table.teamId, table.departmentId)
 ]);
 
 export const activeSessions = pgTable('active_sessions', {
@@ -173,6 +201,7 @@ export const contacts = pgTable('contacts', {
 export const services = pgTable('services', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').references(() => teams.id),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
   price: numeric('price', { precision: 10, scale: 2 }).notNull(),
@@ -181,11 +210,14 @@ export const services = pgTable('services', {
   requiresFasting: boolean('requires_fasting').default(false),
   category: varchar('category', { length: 50 }),
   slotMinutes: integer('slot_minutes'),
-});
+}, (table) => [
+  index('idx_services_team_dept').on(table.teamId, table.departmentId)
+]);
 
 export const doctors = pgTable('doctors', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   userId: integer('user_id').references(() => users.id),
   name: varchar('name', { length: 255 }).notNull(),
   specialty: varchar('specialty', { length: 100 }),
@@ -197,7 +229,9 @@ export const doctors = pgTable('doctors', {
   createdAt: timestamp('created_at').defaultNow(),
   billingStrategy: billingStrategyEnum('billing_strategy').notNull().default('post_consultation'),
   depositPercentage: numeric('deposit_percentage', { precision: 5, scale: 2 }).default('0'),
-});
+}, (table) => [
+  index('idx_doctors_team_dept').on(table.teamId, table.departmentId)
+]);
 export const doctorsToServices = pgTable('doctors_to_services', {
   doctorId: integer('doctor_id')
     .notNull()
@@ -222,10 +256,13 @@ export const appointments = pgTable('appointments', {
   googleCalendarEventId: varchar('google_calendar_event_id', { length: 255 }).unique(),
   createdAt: timestamp('created_at').defaultNow(),
   teamId: integer('team_id').references(() => teams.id),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'restrict' }),
   status: appointmentStatusEnum('status').notNull().default('scheduled'),
   paymentStatus: paymentStatusEnum('payment_status').notNull().default('pending'),
   currentPaymentLink: text('payment_link'),
-});
+}, (table) => [
+  index('idx_appointments_team_dept').on(table.teamId, table.departmentId)
+]);
 export const payments = pgTable('payments', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id),
@@ -264,6 +301,8 @@ export const chatSessions = pgTable("chat_sessions", {
   teamId: integer("team_id")
     .notNull()
     .references(() => teams.id, { onDelete: "cascade" }),
+  departmentId: integer("department_id")
+    .references(() => departments.id, { onDelete: "set null" }),
   contactId: integer("contact_id")
     .notNull()
     .references(() => contacts.id, { onDelete: "cascade" }),
@@ -280,7 +319,8 @@ export const chatSessions = pgTable("chat_sessions", {
   expiresAt: timestamp("expires_at").notNull(),
 }, (table) => [
   index('idx_session_expiration').on(table.expiresAt),
-  index('idx_session_contact').on(table.contactId)
+  index('idx_session_contact').on(table.contactId),
+  index('idx_chat_sessions_team_dept').on(table.teamId, table.departmentId)
 ]);
 export const waitingList = pgTable('waiting_list', {
   id: serial('id').primaryKey(),
@@ -291,13 +331,33 @@ export const waitingList = pgTable('waiting_list', {
   status: waitingListStatusEnum('status').default('waiting'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   appointmentId: integer('appointment_id').references(() => appointments.id), // CORRECCIÓN APLICADA: Agregada Foreign Key explícita
   notifiedAt: timestamp('notified_at'),
-});
+}, (table) => [
+  index('idx_waiting_list_team_dept').on(table.teamId, table.departmentId)
+]);
+export const departmentsRelations = relations(departments, ({ one, many }) => ({
+  team: one(teams, {
+    fields: [departments.teamId],
+    references: [teams.id],
+  }),
+  teamAddresses: many(teamAddresses),
+  assistants: many(assistants),
+  services: many(services),
+  doctors: many(doctors),
+  appointments: many(appointments),
+  chatSessions: many(chatSessions),
+  waitingList: many(waitingList),
+  apiKeys: many(apiKeys),
+  memberDepartments: many(memberDepartments),
+}));
+
 export const teamsRelations = relations(teams, ({ many, one }) => ({
   teamMembers: many(teamMembers),
   activityLogs: many(activityLogs),
   invitations: many(invitations),
+  departments: many(departments),
   plan: one(plans, {
     fields: [teams.planId],
     references: [plans.id],
@@ -324,7 +384,18 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   }),
 }));
 
-export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+export const memberDepartmentsRelations = relations(memberDepartments, ({ one }) => ({
+  member: one(teamMembers, {
+    fields: [memberDepartments.memberId],
+    references: [teamMembers.id],
+  }),
+  department: one(departments, {
+    fields: [memberDepartments.departmentId],
+    references: [departments.id],
+  }),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one, many }) => ({
   user: one(users, {
     fields: [teamMembers.userId],
     references: [users.id],
@@ -333,6 +404,7 @@ export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
     fields: [teamMembers.teamId],
     references: [teams.id],
   }),
+  memberDepartments: many(memberDepartments)
 }));
 
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({

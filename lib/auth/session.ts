@@ -1,6 +1,7 @@
 import { compare, hash } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { db } from '@/lib/db/drizzle';
 import { users } from '@/lib/db/schema';
 
 type NewUser = typeof users.$inferInsert;
@@ -43,6 +44,15 @@ export async function getSession() {
   const session = (await cookies()).get('session')?.value;
   if (!session) return null;
   return await verifyToken(session);
+}
+
+export async function getUser() {
+  const session = await getSession();
+  if (!session) return null;
+  const dbUser = await db.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, session.user.id),
+  });
+  return dbUser || null;
 }
 
 export async function setSession(user: NewUser) {

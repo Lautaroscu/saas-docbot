@@ -3,6 +3,7 @@ import {
   users,
   teams,
   teamMembers,
+  departments,
   assistants,
   services,
   doctors,
@@ -14,9 +15,12 @@ import {
   chatSessions,
   teamAddresses,
   waitingList,
-  plans
+  apiKeys,
+  plans,
+  memberDepartments
 } from "@/lib/db/schema";
 
+import { hashPassword } from "@/lib/auth/session";
 import { addDays } from "date-fns";
 import { randomUUID } from "crypto";
 
@@ -26,29 +30,29 @@ async function seed() {
   // -------------------------
   // PLANS
   // -------------------------
-  await db.insert(plans).values([
+  const insertedPlans = await db.insert(plans).values([
     {
       slug: 'inicial',
       name: 'Inicial',
-      mpPlanId: 'preapproval_plan_id_1', // To be updated
-      price: '35000.00',
-      isActive: true,
+      mpPlanId: 'plan_inicial_123',
+      price: '15000',
+      maxDepartments: 1, // Límite Institucional
     },
     {
       slug: 'especialista',
       name: 'Especialista',
-      mpPlanId: 'preapproval_plan_id_2', // To be updated
-      price: '65000.00',
-      isActive: true,
+      mpPlanId: 'plan_especialista_123',
+      price: '30000',
+      maxDepartments: 3, // Límite Especialista
     },
     {
       slug: 'institucional',
       name: 'Institucional',
-      mpPlanId: 'preapproval_plan_id_3', // To be updated
-      price: '110000.00',
-      isActive: true,
+      mpPlanId: 'plan_institucional_123',
+      price: '60000',
+      maxDepartments: 10, // Límite Superior
     }
-  ]);
+  ]).returning();
 
   // -------------------------
   // USERS
@@ -56,15 +60,15 @@ async function seed() {
   const [admin] = await db.insert(users).values({
     name: "Admin User",
     email: "admin@test.com",
-    passwordHash: "hashed_password",
-    role: "admin"
+    passwordHash: await hashPassword("password"),
+    role: "SUPER_ADMIN"
   }).returning();
 
   const [doctorUser] = await db.insert(users).values({
     name: "Dr. Strange",
     email: "doctor@test.com",
-    passwordHash: "hashed_password",
-    role: "doctor"
+    passwordHash: await hashPassword("password"),
+    role: "DOCTOR"
   }).returning();
 
   // -------------------------
@@ -73,13 +77,46 @@ async function seed() {
   const [team] = await db.insert(teams).values({
     name: "Clínica Demo",
     billingEmail: "billing@demo.com",
-    planId: 2, // Assuming Especialista is ID 2
+    planId: insertedPlans[1].id, // Assuming Especialista is ID 2
     subscriptionStatus: "active"
   }).returning();
 
-  await db.insert(teamMembers).values([
-    { teamId: team.id, userId: admin.id, role: "owner" },
-    { teamId: team.id, userId: doctorUser.id, role: "doctor" }
+  // -------------------------
+  // DEPARTMENTS (ÁREAS)
+  // -------------------------
+  const [deptCardiologia, deptOdontologia] = await db.insert(departments).values([
+    { teamId: team.id, name: 'Cardiología' },
+    { teamId: team.id, name: 'Odontología' },
+  ]).returning();
+
+  // -------------------------
+  // TEAM MEMBERS
+  // -------------------------
+  const insertedMembers = await db.insert(teamMembers).values([
+    {
+      teamId: team.id,
+      userId: admin.id,
+      role: "SUPER_ADMIN", // Using Enum Correctly
+    },
+    {
+      teamId: team.id,
+      userId: doctorUser.id,
+      role: "DOCTOR",
+    }
+  ]).returning();
+
+  const superAdminMember = insertedMembers[0];
+  const doctorMember = insertedMembers[1];
+
+  // -------------------------
+  // MEMBER DEPARTMENTS (M:N)
+  // -------------------------
+  // SUPER_ADMIN tiene acceso a Cardiología y Odontología
+  // DOCTOR tiene acceso sólo a Cardiología
+  await db.insert(memberDepartments).values([
+    { memberId: superAdminMember.id, departmentId: deptCardiologia.id },
+    { memberId: superAdminMember.id, departmentId: deptOdontologia.id },
+    { memberId: doctorMember.id, departmentId: deptCardiologia.id }
   ]);
 
   // -------------------------
@@ -87,6 +124,7 @@ async function seed() {
   // -------------------------
   const [address] = await db.insert(teamAddresses).values({
     teamId: team.id,
+    departmentId: deptCardiologia.id,
     name: "Consultorio Centro",
     address: "Av. Siempre Viva 742",
     mapLink: "https://maps.google.com",
@@ -97,22 +135,34 @@ async function seed() {
   }).returning();
 
   // -------------------------
-  // ASSISTANT
+  // ASSISTANTS
   // -------------------------
-  await db.insert(assistants).values({
-    teamId: team.id,
-    name: "Paola",
-    waPhoneNumberId: "1234567890",
-    systemPrompt: "Sos una asistente médica que agenda turnos.",
-    temperature: "0.7"
-  });
+  await db.insert(assistants).values([
+    {
+      teamId: team.id,
+      departmentId: deptCardiologia.id,
+      name: "Paola (Cardio)",
+      waPhoneNumberId: "1234567890",
+      systemPrompt: "Sos una asistente médica de ortopedia que agenda turnos.",
+      temperature: "0.7"
+    },
+    {
+      teamId: team.id,
+      departmentId: deptOdontologia.id,
+      name: "Laura (Odonto)",
+      waPhoneNumberId: "0987654321",
+      systemPrompt: "Sos una asistente médica dental que agenda turnos.",
+      temperature: "0.7"
+    }
+  ]);
 
   // -------------------------
   // SERVICES
   // -------------------------
   const [consulta] = await db.insert(services).values({
     teamId: team.id,
-    name: "Consulta General",
+    departmentId: deptCardiologia.id,
+    name: "Consulta General Cardio",
     description: "Consulta médica general",
     price: "15000.00",
     durationMinutes: 30
@@ -120,7 +170,8 @@ async function seed() {
 
   const [control] = await db.insert(services).values({
     teamId: team.id,
-    name: "Consulta de Control",
+    departmentId: deptOdontologia.id,
+    name: "Consulta de Odonto",
     description: "Seguimiento médico",
     price: "10000.00",
     durationMinutes: 20
@@ -131,6 +182,7 @@ async function seed() {
   // -------------------------
   const [doctor] = await db.insert(doctors).values({
     teamId: team.id,
+    departmentId: deptCardiologia.id,
     userId: doctorUser.id,
     name: "Dr. Stephen Strange",
     specialty: "Cardiología",
@@ -160,6 +212,7 @@ async function seed() {
   // -------------------------
   const [session] = await db.insert(chatSessions).values({
     teamId: team.id,
+    departmentId: deptCardiologia.id,
     contactId: contact.id,
     selectedDoctorId: doctor.id,
     selectedServiceId: consulta.id,
@@ -192,6 +245,7 @@ async function seed() {
 
   const [appointment] = await db.insert(appointments).values({
     teamId: team.id,
+    departmentId: deptCardiologia.id,
     contactId: contact.id,
     doctorId: doctor.id,
     locationId: address.id,
@@ -222,12 +276,32 @@ async function seed() {
   // -------------------------
   await db.insert(waitingList).values({
     teamId: team.id,
+    departmentId: deptCardiologia.id,
     sessionId: String(session.id),
     patientName: "Pedro Gómez",
     patientType: "primera_vez",
     preferredDate: new Date().toISOString().split('T')[0],
     status: "waiting"
   });
+
+  // -------------------------
+  // API KEYS
+  // -------------------------
+  await db.insert(apiKeys).values([
+    {
+      teamId: team.id,
+      name: "Global Master Key",
+      apiKey: "sk_test_global_12345",
+      isActive: true,
+    },
+    {
+      teamId: team.id,
+      departmentId: deptCardiologia.id,
+      name: "Cardiología Bot Key",
+      apiKey: "sk_test_cardio_12345",
+      isActive: true,
+    }
+  ]);
 
   console.log("✅ Seed completed successfully!");
 }

@@ -90,7 +90,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-gray-500 capitalize">{member.role}</p>
                   </div>
                 </div>
-                {member.role !== 'owner' && (
+                {member.role !== 'SUPER_ADMIN' && (
                   <form action={async (formData) => {
                     formData.append('memberId', member.id.toString());
                     await removeTeamMember({ error: '', success: '' }, formData);

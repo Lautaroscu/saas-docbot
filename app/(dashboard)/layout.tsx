@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useState, Suspense } from 'react';
+import { use, useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { CircleIcon, Home, LogOut, LayoutDashboard, Calendar, Users, Bot, Wallet, UsersRound, Settings } from 'lucide-react';
+import { CircleIcon, Home, LogOut, LayoutDashboard, Calendar, Users, Bot, Wallet, UsersRound, Settings, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +13,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Logo } from '@/components/ui/logo';
 import { signOut } from '@/app/(login)/actions';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { User, Team } from '@/types';
 import useSWR, { mutate } from 'swr';
+import { DepartmentSwitcher } from '@/components/department-switcher';
+import { DepartmentProvider, useCurrentDepartment } from '@/components/providers/department-provider';
 import {
   Sidebar,
   SidebarContent,
@@ -56,15 +58,35 @@ function PlanBadge({ tier }: { tier?: string | null }) {
 
 function HeaderControls() {
   const { data: team } = useSWR<Team>('/api/team', fetcher);
+  const { data: userContext } = useSWR('/api/user/context', fetcher);
 
   return (
     <div className="flex items-center gap-3">
+      {userContext?.success && userContext.data?.assignedDepartments && (
+        <ContextSync payload={userContext.data.assignedDepartments} />
+      )}
       {team?.planId && <PlanBadge tier={team.plan?.name} />}
+      {userContext?.success && userContext.data && (
+        <DepartmentSwitcher
+          role={userContext.data.role}
+          assignedDepartments={userContext.data.assignedDepartments}
+        />
+      )}
       <Suspense fallback={<div className="size-8 rounded-full bg-muted animate-pulse" />}>
         <UserMenu />
       </Suspense>
     </div>
   );
+}
+
+function ContextSync({ payload }: { payload: any }) {
+  const { setAvailableDepartments } = useCurrentDepartment();
+
+  useEffect(() => {
+    setAvailableDepartments(payload);
+  }, [payload, setAvailableDepartments]);
+
+  return null;
 }
 
 const navItems = [
@@ -137,12 +159,16 @@ function UserMenu() {
     router.push('/');
   }
 
-  if (!user) {
+  if (user === undefined) {
+    return <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />;
+  }
+
+  if (user === null) {
     return (
-      <div className="flex gap-2">
-        <Link href="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground">Pricing</Link>
-        <Button asChild className="rounded-full h-8 px-4 text-xs">
-          <Link href="/sign-up">Sign Up</Link>
+      <div className="flex items-center gap-4">
+        <Link href="/sign-in" className="text-sm font-medium text-muted-foreground hover:text-foreground">Iniciar Sesión</Link>
+        <Button asChild className="rounded-full h-8 px-4 text-xs bg-blue-600 hover:bg-blue-700 text-white">
+          <Link href="/sign-up">Comenzar</Link>
         </Button>
       </div>
     );
@@ -181,26 +207,50 @@ function UserMenu() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: user, isLoading } = useSWR<User | null>('/api/user', fetcher);
   const currentNavItem = navItems.find(item => item.url === pathname) || { title: 'Dashboard' };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+      </div>
+    );
+  }
+
+  const isLoggedOut = user === null;
+
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <main className="flex-1 overflow-hidden flex flex-col bg-background min-h-screen w-full">
-        <header className="h-[60px] border-b flex items-center justify-between px-6 bg-card shrink-0">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger />
-            <Separator orientation="vertical" className="h-4" />
-            <h1 className="text-sm font-semibold text-muted-foreground">{currentNavItem.title}</h1>
-          </div>
-          <HeaderControls />
-        </header>
-        <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-6xl mx-auto h-full">
-            {children}
-          </div>
-        </div>
-      </main>
-    </SidebarProvider>
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <DepartmentProvider>
+        <SidebarProvider>
+          {!isLoggedOut && <AppSidebar />}
+          <main className="flex-1 overflow-hidden flex flex-col bg-background min-h-screen w-full">
+            <header className="h-[60px] border-b flex items-center justify-between px-6 bg-card shrink-0">
+              <div className="flex items-center gap-4">
+                {!isLoggedOut && <SidebarTrigger />}
+                {!isLoggedOut && <Separator orientation="vertical" className="h-4" />}
+                {isLoggedOut ? (
+                  <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary w-fit transition-opacity hover:opacity-90">
+                    <Logo className="size-8 flex-shrink-0" />
+                    <span className="leading-none text-blue-600">Medly AI</span>
+                  </Link>
+                ) : (
+                  <h1 className="text-sm font-semibold text-muted-foreground">
+                    {pathname === '/pricing' ? 'Planes y Precios' : currentNavItem.title}
+                  </h1>
+                )}
+              </div>
+              <HeaderControls />
+            </header>
+            <div className="flex-1 overflow-auto p-6">
+              <div className="max-w-6xl mx-auto h-full">
+                {children}
+              </div>
+            </div>
+          </main>
+        </SidebarProvider>
+      </DepartmentProvider>
+    </Suspense>
   );
 }

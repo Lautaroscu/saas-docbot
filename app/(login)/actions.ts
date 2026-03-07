@@ -66,7 +66,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   if (userWithTeam.length === 0) {
     return {
-      error: 'Invalid email or password. Please try again.',
+      error: 'Correo o contraseña inválidos. Intenta de nuevo.',
       email,
       password
     };
@@ -81,7 +81,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   if (!isPasswordValid) {
     return {
-      error: 'Invalid email or password. Please try again.',
+      error: 'Correo o contraseña inválidos. Intenta de nuevo.',
       email,
       password
     };
@@ -117,7 +117,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   if (existingUser.length > 0) {
     return {
-      error: 'Failed to create user. Please try again.',
+      error: 'Ya existe este correo electrónico.',
       email,
       password
     };
@@ -128,21 +128,21 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const newUser: NewUser = {
     email,
     passwordHash,
-    role: 'owner' // Default role, will be overridden if there's an invitation
+    role: 'SUPER_ADMIN' // Default role, will be overridden if there's an invitation
   };
 
   const [createdUser] = await db.insert(users).values(newUser).returning();
 
   if (!createdUser) {
     return {
-      error: 'Failed to create user. Please try again.',
+      error: 'Error al intentar crear cuenta. Por favor intente de nuevo.',
       email,
       password
     };
   }
 
   let teamId: number;
-  let userRole: string;
+  let userRole: 'SUPER_ADMIN' | 'ADMIN' | 'DOCTOR';
   let createdTeam: typeof teams.$inferSelect | null = null;
 
   if (inviteId) {
@@ -161,7 +161,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
     if (invitation) {
       teamId = invitation.teamId;
-      userRole = invitation.role;
+      userRole = invitation.role as 'SUPER_ADMIN' | 'ADMIN' | 'DOCTOR';
 
       await db
         .update(invitations)
@@ -176,7 +176,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         .where(eq(teams.id, teamId))
         .limit(1);
     } else {
-      return { error: 'Invalid or expired invitation.', email, password };
+      return { error: 'La invitación es inválida o ha caducado.', email, password };
     }
   } else {
     // Create a new team if there's no invitation
@@ -188,14 +188,14 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
     if (!createdTeam) {
       return {
-        error: 'Failed to create team. Please try again.',
+        error: 'Fallo al inicializar el espacio de trabajo. Intenta de nuevo.',
         email,
         password
       };
     }
 
     teamId = createdTeam.id;
-    userRole = 'owner';
+    userRole = 'SUPER_ADMIN';
 
     await logActivity(teamId, createdUser.id, ActivityType.CREATE_TEAM);
   }
@@ -392,7 +392,7 @@ export const removeTeamMember = validatedActionWithUser(
 
 const inviteTeamMemberSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['member', 'owner'])
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'DOCTOR'])
 });
 
 export const inviteTeamMember = validatedActionWithUser(

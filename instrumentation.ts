@@ -3,7 +3,7 @@ import { INBOUND_QUEUE_NAME } from './lib/queues/inboundQueue';
 import { OUTBOUND_QUEUE_NAME } from './lib/queues/outboundQueue';
 import redis from './lib/redis';
 import { db } from '@/lib/db/drizzle';
-import { assistants, contacts, doctors, appointments, teamAddresses, chatSessions, teams, apiKeys } from '@/lib/db/schema';
+import { assistants, contacts, doctors, appointments, teamAddresses, chatSessions, teams, apiKeys, departments } from '@/lib/db/schema';
 import { eq, and, gte, desc } from 'drizzle-orm';
 
 const globalForWorkers = globalThis as unknown as {
@@ -24,7 +24,7 @@ export async function register() {
             globalForWorkers.inboundWorker = new Worker(
                 INBOUND_QUEUE_NAME,
                 async (job) => {
-                    const { contactId, phoneNumberId, waId, teamId } = job.data;
+                    const { contactId, phoneNumberId, waId, teamId, departmentId } = job.data;
                     const bufferKey = `buffer:msg:${contactId}`;
                     const processingKey = `buffer:msg:${contactId}:processing`;
 
@@ -85,6 +85,9 @@ export async function register() {
                     const team = await db.query.teams.findFirst({
                         where: eq(teams.id, teamId)
                     });
+                    const department = await db.query.departments.findFirst({
+                        where: eq(departments.id, departmentId)
+                    });
                     const teamApiKey = await db.query.apiKeys.findFirst({
                         where: eq(apiKeys.teamId, teamId)
                     });
@@ -122,14 +125,20 @@ export async function register() {
                         )
                     });
 
+                    const activeAddressesFilters = [eq(teamAddresses.teamId, teamId), eq(teamAddresses.isActive, true)];
+                    if (departmentId) {
+                        activeAddressesFilters.push(eq(teamAddresses.departmentId, departmentId));
+                    }
+
                     const activeAddresses = await db.query.teamAddresses.findMany({
-                        where: and(eq(teamAddresses.teamId, teamId), eq(teamAddresses.isActive, true))
+                        where: and(...activeAddressesFilters)
                     });
 
                     const fatPayload = {
                         assistantConfig: {
                             assistantId: assistant?.id,
                             teamId: teamId,
+                            departmentId: departmentId,
                             prompt: assistant?.systemPrompt,
                             name: assistant?.name,
                             temperature: assistant?.temperature
@@ -147,6 +156,7 @@ export async function register() {
                             patientAppointments: upcomingAppointments,
                             teamAddressDefault: activeAddresses[0],
                             teamName: team?.name,
+                            departmentName: department?.name,
                             apiKey: teamApiKey?.apiKey
                         },
                         sessionContext: {

@@ -1,5 +1,5 @@
 {
-  "id": "08ba3901-3771-40dc-b861-cc1c1653436c",
+  "id": "869d21fc-9386-4be1-bffb-edbd4e58aa3d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -163,6 +163,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "api_key": {
           "name": "api_key",
           "type": "varchar(100)",
@@ -211,6 +217,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_apikeys_team_dept": {
+          "name": "idx_apikeys_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -220,6 +247,19 @@
           "tableTo": "teams",
           "columnsFrom": [
             "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "api_keys_department_id_departments_id_fk": {
+          "name": "api_keys_department_id_departments_id_fk",
+          "tableFrom": "api_keys",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
           ],
           "columnsTo": [
             "id"
@@ -307,6 +347,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "appointment_status",
@@ -330,7 +376,29 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_appointments_team_dept": {
+          "name": "idx_appointments_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "appointments_contact_id_contacts_id_fk": {
           "name": "appointments_contact_id_contacts_id_fk",
@@ -396,6 +464,19 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "appointments_department_id_departments_id_fk": {
+          "name": "appointments_department_id_departments_id_fk",
+          "tableFrom": "appointments",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -427,6 +508,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -489,6 +576,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_assistants_team_dept": {
+          "name": "idx_assistants_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -503,6 +611,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "assistants_department_id_departments_id_fk": {
+          "name": "assistants_department_id_departments_id_fk",
+          "tableFrom": "assistants",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -684,6 +805,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "contact_id": {
           "name": "contact_id",
           "type": "integer",
@@ -779,6 +906,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_chat_sessions_team_dept": {
+          "name": "idx_chat_sessions_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -793,6 +941,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "chat_sessions_department_id_departments_id_fk": {
+          "name": "chat_sessions_department_id_departments_id_fk",
+          "tableFrom": "chat_sessions",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "chat_sessions_contact_id_contacts_id_fk": {
@@ -953,6 +1114,65 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.departments": {
+      "name": "departments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "departments_team_id_teams_id_fk": {
+          "name": "departments_team_id_teams_id_fk",
+          "tableFrom": "departments",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.doctors": {
       "name": "doctors",
       "schema": "",
@@ -968,6 +1188,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "user_id": {
           "name": "user_id",
@@ -1041,7 +1267,29 @@
           "default": "'0'"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_doctors_team_dept": {
+          "name": "idx_doctors_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "doctors_team_id_teams_id_fk": {
           "name": "doctors_team_id_teams_id_fk",
@@ -1054,6 +1302,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "doctors_department_id_departments_id_fk": {
+          "name": "doctors_department_id_departments_id_fk",
+          "tableFrom": "doctors",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "doctors_user_id_users_id_fk": {
@@ -1247,6 +1508,73 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.member_departments": {
+      "name": "member_departments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "member_departments_member_id_team_members_id_fk": {
+          "name": "member_departments_member_id_team_members_id_fk",
+          "tableFrom": "member_departments",
+          "tableTo": "team_members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "member_departments_department_id_departments_id_fk": {
+          "name": "member_departments_department_id_departments_id_fk",
+          "tableFrom": "member_departments",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "idx_unique_member_department": {
+          "name": "idx_unique_member_department",
+          "nullsNotDistinct": false,
+          "columns": [
+            "member_id",
+            "department_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1453,6 +1781,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "max_departments": {
+          "name": "max_departments",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "is_active": {
           "name": "is_active",
           "type": "boolean",
@@ -1489,6 +1824,12 @@
         },
         "team_id": {
           "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1545,7 +1886,29 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_services_team_dept": {
+          "name": "idx_services_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "services_team_id_teams_id_fk": {
           "name": "services_team_id_teams_id_fk",
@@ -1558,6 +1921,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "services_department_id_departments_id_fk": {
+          "name": "services_department_id_departments_id_fk",
+          "tableFrom": "services",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1579,6 +1955,12 @@
         },
         "team_id": {
           "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1615,7 +1997,29 @@
           "default": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_ta_team_dept": {
+          "name": "idx_ta_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "team_addresses_team_id_teams_id_fk": {
           "name": "team_addresses_team_id_teams_id_fk",
@@ -1628,6 +2032,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "team_addresses_department_id_departments_id_fk": {
+          "name": "team_addresses_department_id_departments_id_fk",
+          "tableFrom": "team_addresses",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1661,9 +2078,11 @@
         },
         "role": {
           "name": "role",
-          "type": "varchar(50)",
+          "type": "user_role",
+          "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'ADMIN'"
         },
         "joined_at": {
           "name": "joined_at",
@@ -1738,9 +2157,9 @@
           "notNull": true,
           "default": "now()"
         },
-        "mp_plan_id": {
-          "name": "mp_plan_id",
-          "type": "text",
+        "plan_id": {
+          "name": "plan_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1753,12 +2172,6 @@
         "billing_email": {
           "name": "billing_email",
           "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "plan_name": {
-          "name": "plan_name",
-          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
         },
@@ -1777,7 +2190,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "teams_plan_id_plans_id_fk": {
+          "name": "teams_plan_id_plans_id_fk",
+          "tableFrom": "teams",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "teams_mp_preapproval_id_unique": {
@@ -1927,6 +2354,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "appointment_id": {
           "name": "appointment_id",
           "type": "integer",
@@ -1940,7 +2373,29 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_waiting_list_team_dept": {
+          "name": "idx_waiting_list_team_dept",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "waiting_list_team_id_teams_id_fk": {
           "name": "waiting_list_team_id_teams_id_fk",
@@ -1953,6 +2408,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "waiting_list_department_id_departments_id_fk": {
+          "name": "waiting_list_department_id_departments_id_fk",
+          "tableFrom": "waiting_list",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "waiting_list_appointment_id_appointments_id_fk": {
@@ -2014,6 +2482,15 @@
         "completed",
         "failed",
         "refunded"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "DOCTOR"
       ]
     },
     "public.waiting_list_status": {

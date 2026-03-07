@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { signToken, verifyToken } from '@/lib/auth/session';
 import { db } from '@/lib/db/drizzle';
-import { apiKeys, teamMembers, teams } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { apiKeys, teamMembers, teams, memberDepartments, departments } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 // Cache Global
-const apiKeyCache = new Map<string, { teamId: number; expires: number }>();
+const apiKeyCache = new Map<string, { teamId: number; departmentId: number | null; expires: number }>();
 const subscriptionCache = new Map<number, { status: string; expires: number }>();
 const CACHE_TTL = 1000 * 60 * 10; // 10 minutos
 
@@ -27,10 +27,12 @@ export async function middleware(request: NextRequest) {
     }
 
     let teamId: number | null = null;
+    let departmentId: number | null = null;
     const cached = apiKeyCache.get(apiKey);
 
     if (cached && cached.expires > Date.now()) {
       teamId = cached.teamId;
+      departmentId = cached.departmentId;
     } else {
       const keyData = await db.query.apiKeys.findFirst({
         where: eq(apiKeys.apiKey, apiKey),
@@ -38,8 +40,10 @@ export async function middleware(request: NextRequest) {
 
       if (keyData && keyData.isActive) {
         teamId = keyData.teamId;
+        departmentId = keyData.departmentId;
         apiKeyCache.set(apiKey, {
           teamId: keyData.teamId,
+          departmentId: keyData.departmentId,
           expires: Date.now() + CACHE_TTL
         });
       }
@@ -51,6 +55,9 @@ export async function middleware(request: NextRequest) {
 
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-team-id', teamId.toString());
+    if (departmentId) {
+      requestHeaders.set('x-department-id', departmentId.toString());
+    }
 
     // Create new response with injected headers
     return NextResponse.next({ request: { headers: requestHeaders } });
@@ -93,8 +100,44 @@ export async function middleware(request: NextRequest) {
           }
         }
 
+        // Permitir el acceso a la configuración para gestionar pagos, bloqueando el resto
+        const isSettingsRoute = pathname.startsWith('/settings') || pathname.startsWith('/dashboard/settings');
+
         if (!subStatus || (subStatus !== 'active' && subStatus !== 'authorized')) {
-          return NextResponse.redirect(new URL('/pricing', request.url));
+          if (!isSettingsRoute) {
+            return NextResponse.redirect(new URL('/pricing', request.url));
+          }
+        }
+
+        // Context Persistence: Validar si no tiene un departamento seleccionado
+        const isScopedRoute = pathname.startsWith('/management') || pathname.startsWith('/agenda') || pathname.startsWith('/patients');
+        const departmentCookie = request.cookies.get('medly_department_id');
+
+        if (isScopedRoute && !departmentCookie && subStatus === 'active') {
+          // Traer la pertenencia completa
+          const memberData = await db.query.teamMembers.findFirst({
+            where: eq(teamMembers.userId, parsed.user.id),
+            with: {
+              memberDepartments: {
+                with: {
+                  department: true
+                }
+              }
+            }
+          });
+
+          if (memberData) {
+            if (memberData.role === 'SUPER_ADMIN') {
+              // Al super_admin le asignamos la vista global "all" si no tiene cookie
+              res.cookies.set('medly_department_id', 'all', { path: '/' });
+            } else if (memberData.memberDepartments.length > 0) {
+              // A los ADMIN y DOCTOR los forzamos a su primera área autorizada
+              res.cookies.set('medly_department_id', memberData.memberDepartments[0].departmentId.toString(), { path: '/' });
+            } else {
+              // Si no es super admin y no tiene áreas... no debería estar aquí, lo devolvemos a config
+              return NextResponse.redirect(new URL('/settings', request.url));
+            }
+          }
         }
       }
 

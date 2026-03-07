@@ -2,6 +2,7 @@ CREATE TYPE "public"."appointment_status" AS ENUM('scheduled', 'reconfirmed', 'c
 CREATE TYPE "public"."billing_strategy" AS ENUM('upfront_full', 'upfront_deposit', 'post_consultation');--> statement-breakpoint
 CREATE TYPE "public"."patient_type" AS ENUM('primera_vez', 'control');--> statement-breakpoint
 CREATE TYPE "public"."payment_status" AS ENUM('pending', 'partial', 'completed', 'failed', 'refunded');--> statement-breakpoint
+CREATE TYPE "public"."user_role" AS ENUM('SUPER_ADMIN', 'ADMIN', 'DOCTOR');--> statement-breakpoint
 CREATE TYPE "public"."waiting_list_status" AS ENUM('waiting', 'notified', 'booked', 'expired');--> statement-breakpoint
 CREATE TABLE "active_sessions" (
 	"id" serial PRIMARY KEY NOT NULL,
@@ -24,6 +25,7 @@ CREATE TABLE "activity_logs" (
 CREATE TABLE "api_keys" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
+	"department_id" integer,
 	"api_key" varchar(100) NOT NULL,
 	"name" varchar(50),
 	"is_active" boolean DEFAULT true,
@@ -43,6 +45,7 @@ CREATE TABLE "appointments" (
 	"google_calendar_event_id" varchar(255),
 	"created_at" timestamp DEFAULT now(),
 	"team_id" integer,
+	"department_id" integer,
 	"status" "appointment_status" DEFAULT 'scheduled' NOT NULL,
 	"payment_status" "payment_status" DEFAULT 'pending' NOT NULL,
 	"payment_link" text,
@@ -52,6 +55,7 @@ CREATE TABLE "appointments" (
 CREATE TABLE "assistants" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
+	"department_id" integer,
 	"name" varchar(255) NOT NULL,
 	"wa_phone_number_id" varchar(255) NOT NULL,
 	"wa_verify_token" varchar(255),
@@ -76,6 +80,7 @@ CREATE TABLE "chat_messages" (
 CREATE TABLE "chat_sessions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
+	"department_id" integer,
 	"contact_id" integer NOT NULL,
 	"selected_doctor_id" integer,
 	"selected_service_id" integer,
@@ -104,9 +109,18 @@ CREATE TABLE "contacts" (
 	CONSTRAINT "contacts_team_id_phone_key" UNIQUE("team_id","phone")
 );
 --> statement-breakpoint
+CREATE TABLE "departments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"team_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
 CREATE TABLE "doctors" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
+	"department_id" integer,
 	"user_id" integer,
 	"name" varchar(255) NOT NULL,
 	"specialty" varchar(100),
@@ -136,6 +150,13 @@ CREATE TABLE "invitations" (
 	"status" varchar(20) DEFAULT 'pending' NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "member_departments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"member_id" integer NOT NULL,
+	"department_id" integer NOT NULL,
+	CONSTRAINT "idx_unique_member_department" UNIQUE("member_id","department_id")
+);
+--> statement-breakpoint
 CREATE TABLE "payments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
@@ -158,6 +179,7 @@ CREATE TABLE "plans" (
 	"name" varchar(100) NOT NULL,
 	"mp_plan_id" text NOT NULL,
 	"price" numeric(10, 2) NOT NULL,
+	"max_departments" integer DEFAULT 1 NOT NULL,
 	"is_active" boolean DEFAULT true,
 	CONSTRAINT "plans_slug_unique" UNIQUE("slug")
 );
@@ -165,6 +187,7 @@ CREATE TABLE "plans" (
 CREATE TABLE "services" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer,
+	"department_id" integer,
 	"name" varchar(100) NOT NULL,
 	"description" text,
 	"price" numeric(10, 2) NOT NULL,
@@ -178,6 +201,7 @@ CREATE TABLE "services" (
 CREATE TABLE "team_addresses" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer,
+	"department_id" integer,
 	"name" varchar(100),
 	"address" varchar(255) NOT NULL,
 	"map_link" text,
@@ -189,7 +213,7 @@ CREATE TABLE "team_members" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"team_id" integer NOT NULL,
-	"role" varchar(50) NOT NULL,
+	"role" "user_role" DEFAULT 'ADMIN' NOT NULL,
 	"joined_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -198,10 +222,9 @@ CREATE TABLE "teams" (
 	"name" varchar(100) NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	"mp_plan_id" text,
+	"plan_id" integer,
 	"mp_preapproval_id" text,
 	"billing_email" varchar(255),
-	"plan_name" varchar(50),
 	"subscription_status" varchar(20),
 	"webhook_token" uuid DEFAULT gen_random_uuid(),
 	CONSTRAINT "teams_mp_preapproval_id_unique" UNIQUE("mp_preapproval_id"),
@@ -229,6 +252,7 @@ CREATE TABLE "waiting_list" (
 	"status" "waiting_list_status" DEFAULT 'waiting',
 	"created_at" timestamp with time zone DEFAULT now(),
 	"team_id" integer,
+	"department_id" integer,
 	"appointment_id" integer,
 	"notified_at" timestamp
 );
@@ -237,42 +261,62 @@ ALTER TABLE "active_sessions" ADD CONSTRAINT "active_sessions_team_id_teams_id_f
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_doctor_id_doctors_id_fk" FOREIGN KEY ("doctor_id") REFERENCES "public"."doctors"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_location_id_team_addresses_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."team_addresses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_service_id_services_id_fk" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assistants" ADD CONSTRAINT "assistants_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assistants" ADD CONSTRAINT "assistants_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_selected_doctor_id_doctors_id_fk" FOREIGN KEY ("selected_doctor_id") REFERENCES "public"."doctors"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_selected_service_id_services_id_fk" FOREIGN KEY ("selected_service_id") REFERENCES "public"."services"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "departments" ADD CONSTRAINT "departments_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doctors" ADD CONSTRAINT "doctors_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "doctors" ADD CONSTRAINT "doctors_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doctors" ADD CONSTRAINT "doctors_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doctors_to_services" ADD CONSTRAINT "doctors_to_services_doctor_id_doctors_id_fk" FOREIGN KEY ("doctor_id") REFERENCES "public"."doctors"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doctors_to_services" ADD CONSTRAINT "doctors_to_services_service_id_services_id_fk" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitations" ADD CONSTRAINT "invitations_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitations" ADD CONSTRAINT "invitations_invited_by_users_id_fk" FOREIGN KEY ("invited_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_departments" ADD CONSTRAINT "member_departments_member_id_team_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."team_members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "member_departments" ADD CONSTRAINT "member_departments_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_appointment_id_appointments_id_fk" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "services" ADD CONSTRAINT "services_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_addresses" ADD CONSTRAINT "team_addresses_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "team_addresses" ADD CONSTRAINT "team_addresses_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "teams" ADD CONSTRAINT "teams_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."plans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "waiting_list" ADD CONSTRAINT "waiting_list_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "waiting_list" ADD CONSTRAINT "waiting_list_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "waiting_list" ADD CONSTRAINT "waiting_list_appointment_id_appointments_id_fk" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_api_key_lookup" ON "api_keys" USING btree ("api_key");--> statement-breakpoint
+CREATE INDEX "idx_apikeys_team_dept" ON "api_keys" USING btree ("team_id","department_id");--> statement-breakpoint
+CREATE INDEX "idx_appointments_team_dept" ON "appointments" USING btree ("team_id","department_id");--> statement-breakpoint
 CREATE INDEX "idx_wa_phone_id" ON "assistants" USING btree ("wa_phone_number_id");--> statement-breakpoint
+CREATE INDEX "idx_assistants_team_dept" ON "assistants" USING btree ("team_id","department_id");--> statement-breakpoint
 CREATE INDEX "idx_chat_date" ON "chat_messages" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_chat_team_date" ON "chat_messages" USING btree ("team_id","created_at");--> statement-breakpoint
 CREATE INDEX "idx_chat_lookup" ON "chat_messages" USING btree ("contact_id","session_id");--> statement-breakpoint
 CREATE INDEX "idx_session_expiration" ON "chat_sessions" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "idx_session_contact" ON "chat_sessions" USING btree ("contact_id");--> statement-breakpoint
+CREATE INDEX "idx_chat_sessions_team_dept" ON "chat_sessions" USING btree ("team_id","department_id");--> statement-breakpoint
+CREATE INDEX "idx_doctors_team_dept" ON "doctors" USING btree ("team_id","department_id");--> statement-breakpoint
 CREATE INDEX "idx_dts_doctor" ON "doctors_to_services" USING btree ("doctor_id");--> statement-breakpoint
 CREATE INDEX "idx_dts_service" ON "doctors_to_services" USING btree ("service_id");--> statement-breakpoint
 CREATE INDEX "idx_payments_mp_id" ON "payments" USING btree ("mp_payment_id");--> statement-breakpoint
-CREATE INDEX "idx_payments_appointment" ON "payments" USING btree ("appointment_id");
+CREATE INDEX "idx_payments_appointment" ON "payments" USING btree ("appointment_id");--> statement-breakpoint
+CREATE INDEX "idx_services_team_dept" ON "services" USING btree ("team_id","department_id");--> statement-breakpoint
+CREATE INDEX "idx_ta_team_dept" ON "team_addresses" USING btree ("team_id","department_id");--> statement-breakpoint
+CREATE INDEX "idx_waiting_list_team_dept" ON "waiting_list" USING btree ("team_id","department_id");

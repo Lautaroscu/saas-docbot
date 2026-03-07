@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         }
 
         const teamId = assistant.teamId;
+        const departmentId = assistant.departmentId;
 
         let contactId: number | undefined;
 
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
         // BullMQ throws error if jobId contains ':' so we use '_'
         await inboundQueue.add(
             'process-inbound',
-            { contactId, phoneNumberId, waId, teamId },
+            { contactId, phoneNumberId, waId, teamId, departmentId },
             {
                 jobId: `debounce_${contactId}`,
                 delay: 5000

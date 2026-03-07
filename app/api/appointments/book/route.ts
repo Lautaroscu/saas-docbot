@@ -7,13 +7,16 @@ import { getCalendarAuth, calendar, TIMEZONE, normalizeToARDate } from '@/lib/ca
 export async function POST(request: Request) {
     try {
         const teamIdStr = request.headers.get('x-team-id');
+        const headerDeptIdStr = request.headers.get('x-department-id');
         if (!teamIdStr) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
         const teamId = parseInt(teamIdStr, 10);
 
         const body = await request.json();
-        const { startTime, doctorId, serviceId, contactId, slotMinutes = 60 } = body;
+        const { startTime, doctorId, serviceId, contactId, slotMinutes = 60, departmentId: bodyDeptId } = body;
+
+        const departmentId = headerDeptIdStr ? parseInt(headerDeptIdStr, 10) : (bodyDeptId ? parseInt(bodyDeptId, 10) : null);
 
         if (!startTime || !doctorId || !contactId) {
             return NextResponse.json({ success: false, error: 'Missing required parameters' }, { status: 400 });
@@ -60,6 +63,7 @@ export async function POST(request: Request) {
             if (googleEventId) {
                 const inserted = await db.insert(appointments).values({
                     teamId,
+                    departmentId,
                     contactId,
                     doctorId,
                     serviceId,
