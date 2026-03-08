@@ -145,12 +145,14 @@ export const teamAddresses = pgTable('team_addresses', {
 export const assistants = pgTable('assistants', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id),
-  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
+  departmentId: integer('department_id').notNull().unique().references(() => departments.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(), // Ej: "Paola"
   waPhoneNumberId: varchar('wa_phone_number_id', { length: 255 }).notNull().unique(),
   waVerifyToken: varchar('wa_verify_token', { length: 255 }),
 
-  systemPrompt: text('system_prompt').notNull(),
+  persona: text('persona').notNull(),
+  tone: varchar('tone', { length: 50 }).notNull().default('Profesional'),
+  initialGreeting: text('initial_greeting').notNull(),
   temperature: numeric('temperature', { precision: 2, scale: 1 }).default('0.7'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
@@ -222,6 +224,8 @@ export const doctors = pgTable('doctors', {
   name: varchar('name', { length: 255 }).notNull(),
   specialty: varchar('specialty', { length: 100 }),
   googleCalendarId: varchar('google_calendar_id', { length: 255 }),
+  googleRefreshToken: text('google_refresh_token'),
+  calendarStatus: varchar('calendar_status', { length: 20 }).default('disconnected'),
   isActive: boolean('is_active').default(true),
   mpAccessToken: text('mp_access_token'),
   mpPublicKey: varchar('mp_public_key', { length: 255 }),

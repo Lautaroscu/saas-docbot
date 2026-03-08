@@ -5,37 +5,55 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { getSessionContext } from '@/lib/auth/context';
 import { encrypt } from '@/lib/encryption';
 
+async function resolveAuth(request: Request) {
+    const teamIdHeader = request.headers.get('x-team-id');
+    const deptIdHeader = request.headers.get('x-department-id');
+
+    if (teamIdHeader) {
+        // 🤖 Bot/external client — middleware already validated the API key
+        return {
+            teamId: parseInt(teamIdHeader, 10),
+            role: 'SUPER_ADMIN' as const,
+            assignedDepartments: [] as any[],
+            forcedDeptId: deptIdHeader ? parseInt(deptIdHeader, 10) : null,
+        };
+    }
+
+    // 🖥️ Dashboard — validate via session cookie
+    const context = await getSessionContext(request);
+    console.log(context);
+    if ('error' in context) return context;
+
+    return {
+        teamId: context.teamId,
+        role: context.role,
+        assignedDepartments: context.assignedDepartments,
+        forcedDeptId: null,
+    };
+}
+
 export async function GET(request: Request) {
     try {
-        const teamIdStr = request.headers.get('x-team-id');
-        const headerDeptIdStr = request.headers.get('x-department-id');
-        if (!teamIdStr) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-        const teamId = parseInt(teamIdStr, 10);
+        const auth = await resolveAuth(request);
+
+        if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status as number });
+
+        const { teamId, role, assignedDepartments } = auth;
+        const forcedDeptId = 'forcedDeptId' in auth ? auth.forcedDeptId : null;
 
         let allowedDepartments: number[] = [];
-
-        if (!headerDeptIdStr) {
-            const context = await getSessionContext(request);
-            if ('error' in context) return NextResponse.json({ success: false, error: context.error }, { status: context.status as number });
-
-            if (context.role !== 'SUPER_ADMIN') {
-                if (context.assignedDepartments.length === 0) return NextResponse.json({ success: false, error: 'No assigned departments' }, { status: 403 });
-                allowedDepartments = context.assignedDepartments.map((d: any) => d.id);
-            }
+        if (role !== 'SUPER_ADMIN') {
+            if (assignedDepartments.length === 0) return NextResponse.json({ success: false, error: 'No assigned departments' }, { status: 403 });
+            allowedDepartments = assignedDepartments.map((d: any) => d.id);
         }
 
-        const { searchParams } = new URL(request.url);
-
-        // Context Cookie: La UI ya no envía departmentId por parámetro, lo envía por Cookie Global
+        // Department from forced header (bot scoped key) or cookie (dashboard)
         const contextCookie = request.headers.get('cookie')?.split('; ').find(row => row.startsWith('medly_department_id='))?.split('=')[1];
+        const departmentIdStr = forcedDeptId
+            ? String(forcedDeptId)
+            : (contextCookie && contextCookie !== 'all' ? contextCookie : null);
 
-        // El scope viene forzado por la API Key si existe x-department-id.
-        // Si la key es global, permite que el cliente pida un departamento específico o traiga todo.
-        const departmentIdStr = headerDeptIdStr || (contextCookie !== 'all' ? contextCookie : null) || searchParams.get('departmentId');
-
-        const filters = [eq(doctors.teamId, teamId), eq(doctors.isActive, true)];
+        const filters = [eq(doctors.teamId, teamId)];
 
         if (departmentIdStr) {
             const requestedDeptId = parseInt(departmentIdStr, 10);
@@ -44,17 +62,12 @@ export async function GET(request: Request) {
             }
             filters.push(eq(doctors.departmentId, requestedDeptId));
         } else if (allowedDepartments.length > 0) {
-            // "All" View / Default fallback: Filter everything they have access to
             filters.push(inArray(doctors.departmentId, allowedDepartments));
         }
 
         const docs = await db.query.doctors.findMany({
             where: and(...filters),
-            with: {
-                services: {
-                    with: { service: true }
-                }
-            }
+            with: { services: { with: { service: true } } }
         });
 
         return NextResponse.json({ success: true, data: docs });
@@ -65,54 +78,40 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const teamIdStr = request.headers.get('x-team-id');
-        const headerDeptIdStr = request.headers.get('x-department-id');
-        if (!teamIdStr) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-        const teamId = parseInt(teamIdStr, 10);
+        const auth = await resolveAuth(request);
+        if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status as number });
+
+        const { teamId, role, assignedDepartments } = auth;
+        const forcedDeptId = 'forcedDeptId' in auth ? auth.forcedDeptId : null;
         const body = await request.json();
 
+
         let encryptedMpToken = null;
-        if (body.mpAccessToken) {
-            encryptedMpToken = encrypt(body.mpAccessToken);
-        }
+        if (body.mpAccessToken) encryptedMpToken = encrypt(body.mpAccessToken);
 
-        // Si la API key pertenece a un scope, forzamos a que solo se creen doctores en ese scope.
-        // Si es global, usamos el del body (si lo mandan).
-        let departmentId = headerDeptIdStr ? parseInt(headerDeptIdStr, 10) : (body.departmentId ? parseInt(body.departmentId, 10) : null);
+        // Department: bot forced key > cookie > body > assignedDepartments[0]
+        const contextCookie = request.headers.get('cookie')?.split('; ').find(row => row.startsWith('medly_department_id='))?.split('=')[1];
+        let departmentId: number | null = forcedDeptId;
 
-        if (!headerDeptIdStr) {
-            const context = await getSessionContext(request);
-            if ('error' in context) return NextResponse.json({ success: false, error: context.error }, { status: context.status as number });
+        if (!departmentId && contextCookie && contextCookie !== 'all') departmentId = parseInt(contextCookie, 10);
+        if (!departmentId && body.departmentId) departmentId = parseInt(body.departmentId, 10);
 
-            // Intenta extraer el contexto de la Cookie Global
-            const contextCookie = request.headers.get('cookie')?.split('; ').find(row => row.startsWith('medly_department_id='))?.split('=')[1];
-            if (!departmentId && contextCookie && contextCookie !== 'all') {
-                departmentId = parseInt(contextCookie, 10);
-            }
-
-            if (context.role !== 'SUPER_ADMIN') {
-                const assignedIds = context.assignedDepartments.map((d: any) => d.id);
-                if (!departmentId && assignedIds.length > 0) {
-                    departmentId = assignedIds[0];
-                } else if (departmentId && !assignedIds.includes(departmentId)) {
-                    return NextResponse.json({ success: false, error: 'Cannot create doctor in unassigned department' }, { status: 403 });
-                } else if (assignedIds.length === 0) {
-                    return NextResponse.json({ success: false, error: 'No assigned departments' }, { status: 403 });
-                }
-            }
+        if (role !== 'SUPER_ADMIN') {
+            const assignedIds = assignedDepartments.map((d: any) => d.id);
+            if (!departmentId && assignedIds.length > 0) departmentId = assignedIds[0];
+            else if (departmentId && !assignedIds.includes(departmentId)) return NextResponse.json({ success: false, error: 'Cannot create doctor in unassigned department' }, { status: 403 });
+            else if (assignedIds.length === 0) return NextResponse.json({ success: false, error: 'No assigned departments' }, { status: 403 });
         }
 
         const inserted = await db.insert(doctors).values({
             teamId,
             departmentId,
             name: body.name,
-            specialty: body.specialty,
-            googleCalendarId: body.googleCalendarId,
+            specialty: body.specialty ?? null,
+            googleCalendarId: body.googleCalendarId ?? null,
             mpAccessToken: encryptedMpToken,
-            mpPublicKey: body.mpPublicKey,
-            mpUserId: body.mpUserId,
+            mpPublicKey: body.mpPublicKey ?? null,
+            mpUserId: body.mpUserId ?? null,
         }).returning();
 
         return NextResponse.json({ success: true, data: inserted[0] });

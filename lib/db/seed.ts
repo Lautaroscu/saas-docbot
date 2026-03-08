@@ -143,7 +143,9 @@ async function seed() {
       departmentId: deptCardiologia.id,
       name: "Paola (Cardio)",
       waPhoneNumberId: "1234567890",
-      systemPrompt: "Sos una asistente médica de ortopedia que agenda turnos.",
+      persona: "Eres Paola, una asistente médica virtual del área de Cardiología de Clínica Demo. Tu objetivo es agendar turnos y responder dudas breves. Nunca inventes información clínica ni diagnósticos.",
+      tone: "Profesional",
+      initialGreeting: "¡Hola! Soy Paola, tu asistente de Cardiología 🩺. ¿En qué puedo ayudarte hoy?",
       temperature: "0.7"
     },
     {
@@ -151,7 +153,9 @@ async function seed() {
       departmentId: deptOdontologia.id,
       name: "Laura (Odonto)",
       waPhoneNumberId: "0987654321",
-      systemPrompt: "Sos una asistente médica dental que agenda turnos.",
+      persona: "Eres Laura, una asistente virtual del área de Odontología de Clínica Demo. Ayudás a los pacientes a agendar turnos y a resolver dudas sencillas sobre tratamientos dentales.",
+      tone: "Empático",
+      initialGreeting: "¡Hola! Soy Laura, tu asistente de Odontología 🦷. ¿Cómo puedo ayudarte?",
       temperature: "0.7"
     }
   ]);

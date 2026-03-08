@@ -16,51 +16,61 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isProtectedRoute = !isPublicRoute && !pathname.startsWith('/api');
 
-  // Only external bot endpoints require API Key. Dashboard endpoints use cookies.
-  const isBotApiRoute = pathname.startsWith('/api/chat') || pathname.startsWith('/api/doctors');
+  // Pure bot-only routes: always require API key (no session fallback)
+  const isBotOnlyRoute = pathname.startsWith('/api/chat');
+  // Dual-auth routes: accept API key (bot) OR session cookie (dashboard)
+  const isDualAuthRoute = pathname.startsWith('/api/doctors');
+  const isBotApiRoute = isBotOnlyRoute || isDualAuthRoute;
 
   // --- 1. API KEY AUTH ---
   if (isBotApiRoute) {
     const apiKey = request.headers.get('x-api-key');
+    const sessionCookie = request.cookies.get('session');
+
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Missing x-api-key header' }, { status: 401 });
-    }
-
-    let teamId: number | null = null;
-    let departmentId: number | null = null;
-    const cached = apiKeyCache.get(apiKey);
-
-    if (cached && cached.expires > Date.now()) {
-      teamId = cached.teamId;
-      departmentId = cached.departmentId;
-    } else {
-      const keyData = await db.query.apiKeys.findFirst({
-        where: eq(apiKeys.apiKey, apiKey),
-      });
-
-      if (keyData && keyData.isActive) {
-        teamId = keyData.teamId;
-        departmentId = keyData.departmentId;
-        apiKeyCache.set(apiKey, {
-          teamId: keyData.teamId,
-          departmentId: keyData.departmentId,
-          expires: Date.now() + CACHE_TTL
-        });
+      // Dual-auth routes: if no API key but has session → fall through to session auth below
+      if (isDualAuthRoute && sessionCookie) {
+        // intentional fall-through — handled by getSessionContext in the route handler
+      } else {
+        return NextResponse.json({ success: false, error: 'Unauthorized: Missing x-api-key header' }, { status: 401 });
       }
-    }
+    } else {
+      // API key present → validate and inject x-team-id
+      let teamId: number | null = null;
+      let departmentId: number | null = null;
+      const cached = apiKeyCache.get(apiKey);
 
-    if (!teamId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Invalid or inactive API key' }, { status: 401 });
-    }
+      if (cached && cached.expires > Date.now()) {
+        teamId = cached.teamId;
+        departmentId = cached.departmentId;
+      } else {
+        const keyData = await db.query.apiKeys.findFirst({
+          where: eq(apiKeys.apiKey, apiKey),
+        });
 
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-team-id', teamId.toString());
-    if (departmentId) {
-      requestHeaders.set('x-department-id', departmentId.toString());
-    }
+        if (keyData && keyData.isActive) {
+          teamId = keyData.teamId;
+          departmentId = keyData.departmentId;
+          apiKeyCache.set(apiKey, {
+            teamId: keyData.teamId,
+            departmentId: keyData.departmentId,
+            expires: Date.now() + CACHE_TTL
+          });
+        }
+      }
 
-    // Create new response with injected headers
-    return NextResponse.next({ request: { headers: requestHeaders } });
+      if (!teamId) {
+        return NextResponse.json({ success: false, error: 'Unauthorized: Invalid or inactive API key' }, { status: 401 });
+      }
+
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-team-id', teamId.toString());
+      if (departmentId) {
+        requestHeaders.set('x-department-id', departmentId.toString());
+      }
+
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
   }
 
   // --- 2. SESSION AUTH ---

@@ -134,12 +134,19 @@ export async function register() {
                         where: and(...activeAddressesFilters)
                     });
 
+                    // Assembled prompt for n8n – concatenated from granular fields so
+                    // n8n always receives a clean, injection-resistant string.
+                    const assembledPrompt = assistant
+                        ? `${assistant.persona} Tu tono de respuesta debe ser ${assistant.tone}. Saluda siempre diciendo: ${assistant.initialGreeting}`
+                        : '';
+
                     const fatPayload = {
                         assistantConfig: {
                             assistantId: assistant?.id,
                             teamId: teamId,
                             departmentId: departmentId,
-                            prompt: assistant?.systemPrompt,
+                            prompt: assembledPrompt,
+                            initialGreeting: assistant?.initialGreeting ?? null,
                             name: assistant?.name,
                             temperature: assistant?.temperature
                         },

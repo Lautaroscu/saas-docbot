@@ -4,6 +4,7 @@ import { Manrope } from 'next/font/google';
 import { getUser, getTeamForUser } from '@/lib/db/queries';
 import { SWRConfig } from 'swr';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: 'Serra AI - Medly',
@@ -30,8 +31,6 @@ export default function RootLayout({
         <SWRConfig
           value={{
             fallback: {
-              // We do NOT await here
-              // Only components that read this data will suspend
               '/api/user': getUser(),
               '/api/team': getTeamForUser()
             }
@@ -39,7 +38,9 @@ export default function RootLayout({
         >
           <TooltipProvider>{children}</TooltipProvider>
         </SWRConfig>
+        <Toaster richColors position="bottom-right" />
       </body>
     </html>
   );
 }
+

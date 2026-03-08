@@ -1,6 +1,6 @@
 {
-  "id": "abc15030-fd49-465c-b47a-b644aeddd31c",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "4703f6b3-d2c7-4bec-bc38-4bb48551df24",
+  "prevId": "abc15030-fd49-465c-b47a-b644aeddd31c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1238,6 +1238,19 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
+        },
+        "google_refresh_token": {
+          "name": "google_refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calendar_status": {
+          "name": "calendar_status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'disconnected'"
         },
         "is_active": {
           "name": "is_active",

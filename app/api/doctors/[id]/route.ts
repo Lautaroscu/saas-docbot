@@ -3,15 +3,14 @@ import { db } from '@/lib/db/drizzle';
 import { doctors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { encrypt } from '@/lib/encryption';
+import { getSessionContext } from '@/lib/auth/context';
 
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
     try {
-        const teamIdStr = request.headers.get('x-team-id');
-        if (!teamIdStr) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
+        const context = await getSessionContext(request);
+        if ('error' in context) return NextResponse.json({ success: false, error: context.error }, { status: context.status as number });
 
-        const teamId = parseInt(teamIdStr, 10);
+        const teamId = context.teamId;
         const { id } = await props.params;
         const docId = parseInt(id, 10);
 
@@ -22,14 +21,14 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
                 name: true,
                 specialty: true,
                 googleCalendarId: true,
+                calendarStatus: true,
                 isActive: true,
                 mpPublicKey: true,
+                departmentId: true,
             },
             with: {
                 services: {
-                    with: {
-                        service: true
-                    }
+                    with: { service: true }
                 }
             }
         });
@@ -38,7 +37,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
             return NextResponse.json({ success: false, error: 'Doctor not found' }, { status: 404 });
         }
 
-        // Estructuramos la respuesta para que el Front no reciba la tabla intermedia pura
         const flatDoctor = {
             ...doctor,
             services: doctor.services.map(s => s.service)
@@ -46,18 +44,17 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
         return NextResponse.json({ success: true, data: flatDoctor });
     } catch (error: any) {
-        console.error('Error fetching doctor:', error); // Loguear el error real en el server
+        console.error('Error fetching doctor:', error);
         return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
     try {
-        const teamIdStr = request.headers.get('x-team-id');
-        if (!teamIdStr) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        }
-        const teamId = parseInt(teamIdStr, 10);
+        const context = await getSessionContext(request);
+        if ('error' in context) return NextResponse.json({ success: false, error: context.error }, { status: context.status as number });
+
+        const teamId = context.teamId;
         const { id } = await props.params;
         const docId = parseInt(id, 10);
 
@@ -75,6 +72,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
             updateData.mpAccessToken = encrypt(body.mpAccessToken);
         }
 
+        // Don't allow client to overwrite the refresh token directly
+        delete updateData.googleRefreshToken;
+
         const updated = await db.update(doctors)
             .set(updateData)
             .where(eq(doctors.id, docId))
@@ -88,9 +88,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
     try {
-        const teamIdStr = request.headers.get('x-team-id');
-        if (!teamIdStr) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        const teamId = parseInt(teamIdStr, 10);
+        const context = await getSessionContext(request);
+        if ('error' in context) return NextResponse.json({ success: false, error: context.error }, { status: context.status as number });
+
+        const teamId = context.teamId;
         const { id } = await props.params;
         const docId = parseInt(id, 10);
 

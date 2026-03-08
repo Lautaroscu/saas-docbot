@@ -55,14 +55,17 @@ CREATE TABLE "appointments" (
 CREATE TABLE "assistants" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"team_id" integer NOT NULL,
-	"department_id" integer,
+	"department_id" integer NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"wa_phone_number_id" varchar(255) NOT NULL,
 	"wa_verify_token" varchar(255),
-	"system_prompt" text NOT NULL,
+	"persona" text NOT NULL,
+	"tone" varchar(50) DEFAULT 'Profesional' NOT NULL,
+	"initial_greeting" text NOT NULL,
 	"temperature" numeric(2, 1) DEFAULT '0.7',
 	"is_active" boolean DEFAULT true,
 	"created_at" timestamp DEFAULT now(),
+	CONSTRAINT "assistants_department_id_unique" UNIQUE("department_id"),
 	CONSTRAINT "assistants_wa_phone_number_id_unique" UNIQUE("wa_phone_number_id")
 );
 --> statement-breakpoint
@@ -269,7 +272,7 @@ ALTER TABLE "appointments" ADD CONSTRAINT "appointments_service_id_services_id_f
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assistants" ADD CONSTRAINT "assistants_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "assistants" ADD CONSTRAINT "assistants_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assistants" ADD CONSTRAINT "assistants_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_sessions" ADD CONSTRAINT "chat_sessions_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
